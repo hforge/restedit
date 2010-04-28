@@ -127,7 +127,8 @@ class ExternalEditor:
         #log_file = NamedTemporaryFile(suffix='-zopeedit-log.txt')
         log_file = mktemp(suffix='-zopeedit-log.txt')
         log_filehandler = logging.FileHandler(log_file)
-        log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        log_formatter = logging.Formatter(
+                                '%(asctime)s %(levelname)s %(message)s')
         log_filehandler.setFormatter(log_formatter)
         logger.addHandler(log_filehandler)
         logger.setLevel(logging.DEBUG)
@@ -165,7 +166,8 @@ class ExternalEditor:
             self.config = Configuration(config_path)
 
 
-            # If there is no filename, the user edits the config file of zopeEdit
+            # If there is no filename, the user edits the config file of
+            # zopeEdit
             if input_file=="":
                 self.editConfig()
                 sys.exit(0)
@@ -208,7 +210,8 @@ class ExternalEditor:
             logger.debug("Proxy set to : %s" % self.proxy)
 
             # lock file name for editors that create a lock file
-            self.lock_file_schemes = self.options.get('lock_file_schemes','').split(';')
+            self.lock_file_schemes = self.options.get('lock_file_schemes',
+                                                      '').split(';')
 
             # proxy user and pass
             self.proxy_user = self.options.get('proxy_user', '')
@@ -216,34 +219,41 @@ class ExternalEditor:
 
             # create a new version when the file is closed ?
             self.version_control = int(self.options.get('version_control', 0 ))
-            self.version_command = self.options.get('version_command', '/saveasnewversion')
-            self.version_command+='?versioncomment=ZopeEdit%%20%s' % __version__
+            self.version_command = self.options.get('version_command',
+                                                    '/saveasnewversion')
+            self.version_command += ('?versioncomment=ZopeEdit%%20%s' %
+                                     __version__)
 
             # Should we keep the log file?
             self.keep_log = int(self.options.get('keep_log', 1))
 
-            # Should we inform the user about lock issues ans allow him to edit the file ?
+            # Should we inform the user about lock issues ans allow him to
+            # edit the file ?
             self.manage_locks = int(self.options.get('manage_locks',1))
 
             # Should we always borrow the lock when it does exist ?
             self.use_locks = int(self.options.get('use_locks', 1))
-            self.always_borrow_locks = int(self.options.get('always_borrow_locks', 1))
+            self.always_borrow_locks = int(
+                                    self.options.get('always_borrow_locks', 1))
             self.lock_timeout = self.options.get('lock_timeout', 'infinite')
 
             # Should we clean-up temporary files ?
             self.clean_up = int(self.options.get('cleanup_files', 1))
 
             self.save_interval = float(self.options.get('save_interval',5))
-            self.max_is_alive_counter = int(self.options.get('max_isalive_counter', 5) )
+            self.max_is_alive_counter = int(
+                                    self.options.get('max_isalive_counter', 5))
 
             # Server charset
             self.server_charset = self.options.get('server_charset', 'utf-8')
 
             # Client charset
-            self.client_charset = self.options.get('client_charset', 'iso-8859-1')
+            self.client_charset = self.options.get('client_charset',
+                                                   'iso-8859-1')
 
             # Retrieve original title
-            self.title = metadata["title"].decode(self.server_charset).encode(self.client_charset,'ignore')
+            self.title = (metadata["title"].decode(self.server_charset)
+                          .encode(self.client_charset,'ignore'))
 
             # Write the body of the input file to a separate file
             if int(self.options.get('long_file_name', 0)):
@@ -252,7 +262,8 @@ class ExternalEditor:
                 content_file = content_file.replace(
                     '/', sep).replace(':',sep).replace(' ','_')
             else:
-                content_file = '-' + urllib.unquote(self.path.split('/')[-1]).replace(' ','_')
+                content_file = ('-' +
+                   urllib.unquote(self.path.split('/')[-1]).replace(' ','_'))
 
             extension = self.options.get('extension')
             if extension and not content_file.endswith(extension):
@@ -323,19 +334,28 @@ class ExternalEditor:
             # for security we always delete the files by default
             try:
                 os.remove(self.content_file)
-                logger.info("Content File cleaned up %r at %s" % (self.content_file, time.asctime(time.localtime())))
+                logger.info("Content File cleaned up %r at %s" %
+                            (self.content_file,
+                             time.asctime(time.localtime())))
                 return True
             except OSError:
                 if self.tried_cleanup == 1 :
-                    logger.exception("Failed to clean up %r at %s" % (self.content_file, time.asctime(time.localtime())))
-                    # Issue logged, but it's already the second try. So continue.
+                    logger.exception("Failed to clean up %r at %s" %
+                                     (self.content_file,
+                                      time.asctime(time.localtime())))
+                    # Issue logged, but it's already the second try.
+                    # So continue.
                     return False
                 else:
-                    logger.debug("Failed to clean up %r at %s ; retry in 10 sec" % (self.content_file, time.asctime(time.localtime())))
-                    # Some editors close first and save the file ; this may last few seconds
+                    logger.debug(("Failed to clean up %r at %s ; retry in 10 "
+                                  "sec") % (self.content_file,
+                                            time.asctime(time.localtime())))
+                    # Some editors close first and save the file ; this may
+                    # last few seconds
                     time.sleep(10)
                     self.tried_cleanup = 1
-                    # This is the first try. It may be an editor issue. Let's retry later.
+                    # This is the first try. It may be an editor issue. Let's
+                    # retry later.
                     return self.cleanContentFile()
 
     def getEditorCommand(self):
@@ -507,7 +527,9 @@ class ExternalEditor:
                 command = '%s %s' % (command, self.content_file)
 
             logger.info('Launching EditorProcess with: %r', command)
-            self.editor = EditorProcess(command, self.content_file, self.max_is_alive_counter, self.lock_file_schemes)
+            self.editor = EditorProcess(command, self.content_file,
+                                        self.max_is_alive_counter,
+                                        self.lock_file_schemes)
             logger.info("Editor launched successfully")
 
         launch_success = self.editor.isAlive()
@@ -527,7 +549,8 @@ class ExternalEditor:
             msg = "%s " %(self.title)
             msg += "Some modifications are NOT SAVED to Zope.\n "
             if self.last_saved_mtime != self.initial_mtime:
-                msg += "\n This file has been saved at : %s \n" % time.ctime(self.last_saved_mtime )
+                msg += ("\n This file has been saved at : %s \n" %
+                        time.ctime(self.last_saved_mtime))
             else:
                 msg += "\n This file has never been saved\n \n "
             msg += "You may have network issues\n \n "
@@ -537,12 +560,14 @@ class ExternalEditor:
             msg += "you will loose all your subsequent work.\n "
             msg += "if you choose 'Yes', backup your file."
             if askYesNo(msg):
-                logger.exception("File NOT saved ; user decided to re-open a local copy.")
+                logger.exception("File NOT saved ; user decided to re-open a "
+                                 "local copy.")
                 self.editor.startEditor()
 
         # Clean content file
         if self.dirty_file:
-            logger.exception("Some modifications are NOT saved - ask user wether to keep it or not")
+            logger.exception("Some modifications are NOT saved - ask user "
+                             "wether to keep it or not")
             msg = "%s " %(self.title)
             msg += "Local working copy : %s \n " %(self.content_file)
             msg += "Your intranet file hasn't been saved\n "
@@ -550,7 +575,8 @@ class ExternalEditor:
             if askYesNo(msg):
                 self.clean_up = False
                 self.keep_log = True
-                logger.exception("User decides to keep logs and temporary working copy")
+                logger.exception("User decides to keep logs and temporary "
+                                 "working copy")
         elif ( not unlock_success ) and self.clean_up:
             logger.exception("Unlock failed and we have to clean up files")
             msg = "%s " %(self.title)
@@ -560,7 +586,8 @@ class ExternalEditor:
             if askYesNo(msg):
                 self.clean_up = False
                 self.keep_log = True
-                logger.exception("User decides to keep logs and temporary working copy")
+                logger.exception("User decides to keep logs and temporary "
+                                 "working copy")
 
         self.cleanContentFile()
 
@@ -611,7 +638,8 @@ class ExternalEditor:
                     # any changes that happened during a blocking isAlive call.
                     msg = "%s " %(self.title)
                     if self.last_saved_mtime != self.initial_mtime:
-                        msg += "\n Saved at : %s" % time.ctime(self.last_saved_mtime )
+                        msg += ("\n Saved at : %s" %
+                                time.ctime(self.last_saved_mtime))
                     msg += "\n \n Edition finished (stop monitoring) ?\n "
                     if not askYesNo(msg) :
                         continue
@@ -623,11 +651,13 @@ class ExternalEditor:
         logger.info("putChanges at: %s" % time.asctime(time.localtime()) )
         if self.use_locks and self.lock_token is None:
             # We failed to get a lock initially, so try again before saving
-            logger.warning("PutChanges : lock initially failed. Lock before saving.")
+            logger.warning("PutChanges : lock initially failed. Lock before "
+                           "saving.")
             if not self.lock():
                 # Confirm save without lock
                 msg = "%s " %(self.title)
-                msg += 'Could not acquire lock.\nAttempt to save to Zope anyway ?'
+                msg += ('Could not acquire lock.\n'
+                        'Attempt to save to Zope anyway ?')
                 if not askYesNo(msg):
                     logger.error("PutChanges : Could not acquire lock !")
                     return 0
@@ -647,9 +677,9 @@ class ExternalEditor:
 
         if response.status / 100 != 2:
             # Something went wrong
-            if int(self.options.get('manage_locks', 1)) and askRetryAfterError(response,
-                                       'Could not save to Zope.\n'
-                                       'Error occurred during HTTP put'):
+            if (int(self.options.get('manage_locks', 1)) and
+                askRetryAfterError(response, 'Could not save to Zope.\n'
+                                            'Error occurred during HTTP put')):
                 return self.putChanges()
             else:
                 logger.error('Could not save to Zope\n'
@@ -668,9 +698,11 @@ class ExternalEditor:
             # A lock token came down with the data, so the object is
             # already locked
             if not self.manage_locks:
-                logger.critical('object already locked : lock tocken not empty\nExit')
+                logger.critical('object already locked : lock tocken not '
+                                'empty\nExit')
                 msg = "%s " %(self.title)
-                msg += 'This object is already locked.\nPlease unlock it or contact your administrator'
+                msg += ('This object is already locked.\n'
+                        'Please unlock it or contact your administrator')
                 errorDialog(msg)
                 sys.exit()
             # See if we can borrow the lock
@@ -683,7 +715,8 @@ class ExternalEditor:
                 self.lock_token = 'opaquelocktoken:%s' \
                                   % self.metadata['lock-token']
             else:
-                logger.critical("File locked and user don't want to borrow the lock.")
+                logger.critical("File locked and user don't want to borrow "
+                                "the lock.")
                 sys.exit()
 
         if self.lock_token is not None:
@@ -703,8 +736,10 @@ class ExternalEditor:
                 logger.warning("Lock: object already locked")
                 msg += '(Object already locked)'
             else:
-                logger.error("Lock: failed to lock object: response status %s" % dav_lock_response )
-                msg += 'Unable to get a lock on the server (return value %s)' % dav_lock_response
+                logger.error("Lock: failed to lock object: response status %s"
+                             % dav_lock_response)
+                msg += ('Unable to get a lock on the server (return value %s)'
+                        % dav_lock_response)
 
             if self.manage_locks:
                 msg += '\nDo you want to retry'
@@ -717,7 +752,8 @@ class ExternalEditor:
 
             logger.error("Lock failed. Exit.")
             msg = "%s " %(self.title)
-            msg += 'Unable to lock the file on the server.\n This may be a network or proxy issue.'
+            msg += ('Unable to lock the file on the server.\n'
+                    ' This may be a network or proxy issue.')
             errorDialog(msg)
             sys.exit()
 
@@ -761,17 +797,21 @@ class ExternalEditor:
             just before the first save.
         """
         if not self.version_control:
-            logger.debug("versionControl: version_control is False : %s" % self.version_control)
+            logger.debug("versionControl: version_control is False : %s" %
+                         self.version_control)
             return False
         if self.saved:
-            logger.debug("versionControl: don't create a version if already saved")
+            logger.debug("versionControl: don't create a version if already "
+                         "saved")
             return False
         response=self.zopeRequest('GET',command='%s' % self.version_command)
-        logger.debug("versionControl : return code of new version is %s" % response.status)
+        logger.debug("versionControl : return code of new version is %s" %
+                     response.status)
         if response.status==302:
             return True
         else:
-            logger.warning("Creation of version failed : response status %s" % response.status)
+            logger.warning("Creation of version failed : response status %s" %
+                           response.status)
             return False
 
     def unlock(self, interactive=1):
@@ -780,11 +820,15 @@ class ExternalEditor:
             return True # nothing to do
         response =  self.DAVunlock()
         status = int(response.status)
-        logger.debug("response : %s status : %s status/100: %s"% (response, status, status / 100))
+        logger.debug("response : %s status : %s status/100: %s" %
+                     (response, status, status / 100))
         while status / 100 != 2:
             #unlock failed
-            logger.error("Unlock failed at: %s did_lock=%s status=%s" % (time.asctime(time.localtime()), self.did_lock, status ))
-            if askRetryAfterError(response, 'ZopeEdit can''t unlock your file. Retry ?\n '):
+            logger.error("Unlock failed at: %s did_lock=%s status=%s" %
+                        (time.asctime(time.localtime()),
+                         self.did_lock, status))
+            if askRetryAfterError(response, "ZopeEdit can't unlock your "
+                                            "file. Retry ?\n "):
                 status = self.DAVunlock().status
                 continue
             else :
@@ -880,7 +924,7 @@ class ExternalEditor:
                 # XXX
                 #setup basic authentication
                 proxy_host, proxy_port = self.proxy.split(':')
-                proxy_port=int(proxy_port)
+                proxy_port = int(proxy_port)
                 taburl = url.split('/')
                 if len(taburl[2].split(':'))==2:
                     port=int(taburl[2].split(':')[1])
@@ -895,11 +939,15 @@ class ExternalEditor:
 
                 proxy_authorization = ''
                 if self.proxy_user and self.proxy_passwd:
-                    user_pass=base64.encodestring(self.proxy_user+':'+self.proxy_passwd)
-                    proxy_authorization='Proxy-authorization: Basic '+user_pass+'\r\n'
-                proxy_connect='CONNECT %s:%s HTTP/1.0\r\n'%(host, port)
-                user_agent='User-Agent: Zope External Editor %s\r\n' % __version__
-                proxy_pieces=proxy_connect+proxy_authorization+user_agent+'\r\n'
+                    user_pass = base64.encodestring(self.proxy_user + ':' +
+                                                    self.proxy_passwd)
+                    proxy_authorization = ('Proxy-authorization: Basic ' +
+                                           user_pass + '\r\n')
+                proxy_connect = 'CONNECT %s:%s HTTP/1.0\r\n' % (host, port)
+                user_agent = ('User-Agent: Zope External Editor %s\r\n' %
+                              __version__)
+                proxy_pieces = (proxy_connect + proxy_authorization +
+                                user_agent + '\r\n')
                 #now connect, very simple recv and error checking
                 proxy=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
                 proxy.connect((proxy_host,proxy_port))
@@ -914,7 +962,8 @@ class ExternalEditor:
                 h=HTTPConnection(proxy_host,proxy_port)
                 h.sock=sock
                 h.putrequest(method, url)
-                h.putheader('User-Agent', 'Zope External Editor/%s' % __version__)
+                h.putheader('User-Agent', 'Zope External Editor/%s' %
+                                          __version__)
                 #h.putheader('Connection', 'close')
                 for header, value in headers.items():
                     h.putheader(header, value)
@@ -1008,13 +1057,16 @@ class ExternalEditor:
                 logger.info('Local configuration file %r does not exist. '
                              'Global configuration file is : %r.',
                              user_config, global_config)
-                if not askYesNo("There is no user configuration file.\nCreate it ?"):
+                if not askYesNo("There is no user configuration file.\n"
+                                "Create it ?"):
                     sys.exit(0)
                 create_config_file = True
             else:
-                if askYesNo("Do you want to replace your configuration file`\nwith the default one ?"):
+                if askYesNo("Do you want to replace your configuration file`\n"
+                            "with the default one ?"):
                     create_config_file = True
-                    logger.info("Replace the configuration file with the default one.")
+                    logger.info("Replace the configuration file with the "
+                                "default one.")
             if create_config_file:
                 input_config_file = open(global_config, 'r')
                 output_config_file = open(user_config, 'w')
@@ -1025,8 +1077,10 @@ class ExternalEditor:
 
         else:
             user_config = os.path.expanduser('~/.zope-external-edit')
-            if askYesNo("Do you want to replace your configuration file`\nwith the default one ?"):
-                logger.info("Replace the configuration file with the default one.")
+            if askYesNo("Do you want to replace your configuration file`\n"
+                        "with the default one ?"):
+                logger.info("Replace the configuration file with the default "
+                            "one.")
                 output_config = open(user_config, 'w')
                 output_config.write(default_configuration)
                 output_config.close()
@@ -1035,7 +1089,8 @@ class ExternalEditor:
         if not default_editor:
             logger.critical("No default editor. Configuration edition failed.")
             sys.exit(0)
-        logger.info("Edit configuration file %s with editor %s" % (user_config, default_editor))
+        logger.info("Edit configuration file %s with editor %s" %
+                    (user_config, default_editor))
         os.system("%s %s" % (default_editor, user_config))
 
 
@@ -1051,7 +1106,8 @@ def askRetryAfterError(response, operation, message=''):
                                            response.reason, message))
 
 class EditorProcess:
-    def __init__(self, command, contentfile, max_is_alive_counter, lock_file_schemes):
+    def __init__(self, command, contentfile, max_is_alive_counter,
+                 lock_file_schemes):
         """Launch editor process"""
         # Prepare the command arguments, we use this regex to
         # split on whitespace and properly handle quoting
@@ -1087,8 +1143,8 @@ class EditorProcess:
     def startEditorWin32(self):
         try:
             logger.debug('CreateProcess: %r', self.command)
-            self.handle, nil, nil, nil = CreateProcess(None, self.command, None,
-                                                       None, 1, 0, None,
+            self.handle, nil, nil, nil = CreateProcess(None, self.command,
+                                                       None, None, 1, 0, None,
                                                        None, STARTUPINFO())
         except pywintypes.error, e:
             fatalError('Error launching editor process\n'
@@ -1127,7 +1183,8 @@ class EditorProcess:
     def isFileOpen(self):
         """Test if File is locked (filesystem)"""
         logger.debug("test if the file edited is locked by filesystem")
-        isFileOpenNum = popen2.Popen4('/bin/fuser %s' % self.command.split(' ')[-1] ).wait()
+        isFileOpenNum = popen2.Popen4('/bin/fuser %s' %
+                                      self.command.split(' ')[-1]).wait()
         return isFileOpenNum == 0
 
     def isPidUp(self):
@@ -1165,7 +1222,8 @@ class EditorProcess:
            file check has priority"""
 
         if self.start_sequence:
-            logger.info("isAlive : still starting. Counter : %s" % self.is_alive_counter)
+            logger.info("isAlive : still starting. Counter : %s" %
+                        self.is_alive_counter)
             if self.is_alive_counter < self.max_is_alive_counter :
                 self.is_alive_counter += 1
             else:
@@ -1175,7 +1233,8 @@ class EditorProcess:
                 logger.debug("isAlive: True( %s : %s)"%
                              (i, self.methods[i].__doc__))
                 if i != self.selected_method:
-                    logger.info("DETECTION METHOD CHANGE : Level %s - %s" %(i, self.methods[i].__doc__))
+                    logger.info("DETECTION METHOD CHANGE : Level %s - %s" %
+                                (i, self.methods[i].__doc__))
                 self.selected_method = i
                 self.nb_methods = i
                 self.lock_detected = True
