@@ -68,7 +68,6 @@ class Configuration:
             f = open(path, 'w')
             f.write(default_configuration)
             f.close()
-        self.changed = 0
         self.config = ConfigParser()
         self.config.readfp(open(path))
         logger.info("init at: %s" % time.asctime(time.localtime()) )
@@ -78,12 +77,10 @@ class Configuration:
         """Save config options to disk"""
         self.config.write(open(self.path, 'w'))
         logger.info("save at: %s" % time.asctime(time.localtime()) )
-        self.changed = 0
 
 
     def set(self, section, option, value):
         self.config.set(section, option, value)
-        self.changed = 1
 
 
     def __getattr__(self, name):
