@@ -1281,7 +1281,7 @@ class EditorProcess:
 
 
 
-## Platform specific declarations ##
+# Input/Ouput
 def has_tk():
     """Sets up a suitable tk root window if one has not
        already been setup. Returns true if tk is happy,
@@ -1300,7 +1300,6 @@ def has_tk():
 
 
 
-#askPassword is common to win32 and Posix
 def askPassword(realm, username):
     if has_tk():
         from tkSimpleDialog import askstring
@@ -1310,68 +1309,46 @@ def askPassword(realm, username):
         return r
 
 
-if win32:
-    import Plugins # Assert dependancy
-    from win32ui import MessageBox
-    from win32process import CreateProcess, GetExitCodeProcess, STARTUPINFO
-    from win32event import WaitForSingleObject
-    from win32con import MB_OK, MB_OKCANCEL, MB_YESNO, MB_RETRYCANCEL, \
-                         MB_SYSTEMMODAL, MB_ICONERROR, MB_ICONQUESTION, \
-                         MB_ICONEXCLAMATION
 
-    def errorDialog(message):
-        MessageBox(message, title, MB_OK + MB_ICONERROR + MB_SYSTEMMODAL)
-
-    def messageDialog(message):
-        MessageBox(message, title, MB_OK + MB_ICONEXCLAMATION)
-
-    def askRetryCancel(message):
-        return MessageBox(message, title,
-                          MB_OK + MB_RETRYCANCEL + MB_ICONEXCLAMATION
-                          + MB_SYSTEMMODAL) == 4
-
-    def askYesNo(message):
-        return MessageBox(message, title,
-                          MB_OK + MB_YESNO + MB_ICONQUESTION +
-                          MB_SYSTEMMODAL) == 6
-
-else: # Posix platform
-    from time import sleep
-    import re
-
-    def errorDialog(message):
-        """Error dialog box"""
-        try:
-            if has_tk():
-                from tkMessageBox import showerror
-                showerror(title, message)
-                has_tk()
-        finally:
-            print message
-
-    def messageDialog(message):
-        """Error dialog box"""
-        try:
-            if has_tk():
-                from tkMessageBox import showerror
-                showerror(title, message)
-                has_tk()
-        finally:
-            print message
-
-    def askRetryCancel(message):
+def errorDialog(message):
+    """Error dialog box"""
+    try:
         if has_tk():
-            from tkMessageBox import askretrycancel
-            r = askretrycancel(title, message)
-            has_tk() # ugh, keeps tk happy
-            return r
+            from tkMessageBox import showerror
+            showerror(title, message)
+            has_tk()
+    finally:
+        print message
 
-    def askYesNo(message):
+
+
+def messageDialog(message):
+    """Error dialog box"""
+    try:
         if has_tk():
-            from tkMessageBox import askyesno
-            r = askyesno(title, message)
-            has_tk() # must...make...tk...happy
-            return r
+            from tkMessageBox import showerror
+            showerror(title, message)
+            has_tk()
+    finally:
+        print message
+
+
+
+def askRetryCancel(message):
+    if has_tk():
+        from tkMessageBox import askretrycancel
+        r = askretrycancel(title, message)
+        has_tk() # ugh, keeps tk happy
+        return r
+
+
+
+def askYesNo(message):
+    if has_tk():
+        from tkMessageBox import askyesno
+        r = askyesno(title, message)
+        has_tk() # must...make...tk...happy
+        return r
 
 
 
@@ -1572,9 +1549,7 @@ if __name__ == '__main__':
         input_file=""
     try:
         ExternalEditor(input_file).launch()
-    except KeyboardInterrupt:
-        pass
-    except SystemExit:
+    except (KeyboardInterrupt, SystemExit):
         pass
     except:
         fatalError(sys.exc_info()[1])
