@@ -12,9 +12,8 @@
 # FOR A PARTICULAR PURPOSE.
 #
 ##############################################################################
-"""Zope External Editor Helper Application by Casey Duncan
-
-$Id: zopeedit.py $"""
+"""Restedit, an External Editor Helper Application based on zopeedit.py:
+http://plone.org/products/zope-externaleditor-client"""
 
 __version__ = '0.10.2'
 
@@ -38,15 +37,16 @@ import hashlib
 import urllib
 import shutil
 import glob
+import socket
+import base64
 from time import sleep
-
 from tempfile import mktemp, NamedTemporaryFile
 from ConfigParser import ConfigParser
 from httplib import HTTPConnection, HTTPSConnection,FakeSocket
-import socket
-import base64
 from urlparse import urlparse
 from urllib2 import parse_http_list, parse_keqv_list
+
+
 
 LOG_LEVELS = {'debug': logging.DEBUG,
               'info': logging.INFO,
@@ -57,7 +57,10 @@ LOG_LEVELS = {'debug': logging.DEBUG,
 logger = logging.getLogger('zopeedit')
 log_file = None
 
+
+
 class Configuration:
+
     def __init__(self, path):
         # Create/read config file on instantiation
         self.path = path
@@ -70,19 +73,23 @@ class Configuration:
         self.config.readfp(open(path))
         logger.info("init at: %s" % time.asctime(time.localtime()) )
 
+
     def save(self):
         """Save config options to disk"""
         self.config.write(open(self.path, 'w'))
         logger.info("save at: %s" % time.asctime(time.localtime()) )
         self.changed = 0
 
+
     def set(self, section, option, value):
         self.config.set(section, option, value)
         self.changed = 1
 
+
     def __getattr__(self, name):
         # Delegate to the ConfigParser instance
         return getattr(self.config, name)
+
 
     def getAllOptions(self, meta_type, content_type, title, host_domain):
         """Return a dict of all applicable options for the
@@ -113,6 +120,8 @@ class Configuration:
                     opt[option] = self.config.get(section, option)
                     logger.debug("option %s: %s" %( option, opt[option]))
         return opt
+
+
 
 class ExternalEditor:
 
@@ -319,6 +328,7 @@ class ExternalEditor:
                     raise exc, exc_data
             raise
 
+
     def __del__(self):
         if self.did_lock:
             # Try not to leave dangling locks on the server
@@ -357,6 +367,7 @@ class ExternalEditor:
                     # This is the first try. It may be an editor issue. Let's
                     # retry later.
                     return self.cleanContentFile()
+
 
     def getEditorCommand(self):
         """Return the editor command"""
@@ -475,6 +486,7 @@ class ExternalEditor:
 
         return editor
 
+
     def launch(self):
         """Launch external editor"""
 
@@ -591,6 +603,7 @@ class ExternalEditor:
 
         self.cleanContentFile()
 
+
     def monitorFile(self):
         final_loop = 0
 
@@ -646,6 +659,7 @@ class ExternalEditor:
                     final_loop = 1
                     logger.info("Final loop")
 
+
     def putChanges(self):
         """Save changes to the file back to Zope"""
         logger.info("putChanges at: %s" % time.asctime(time.localtime()) )
@@ -687,6 +701,7 @@ class ExternalEditor:
                 return 0
         logger.info("File successfully saved back to the intranet")
         return 1
+
 
     def lock(self):
         """Apply a webdav lock to the object in Zope"""
@@ -757,6 +772,7 @@ class ExternalEditor:
             errorDialog(msg)
             sys.exit()
 
+
     def DAVLock(self):
         """Do effectively lock the object"""
         logger.debug("doLock at: %s" % time.asctime(time.localtime()) )
@@ -790,6 +806,7 @@ class ExternalEditor:
 
         return dav_lock_response
 
+
     def versionControl(self):
         """ If version_control is enabled, ZopeEdit will try to automatically
             create a new version of the file.
@@ -814,6 +831,7 @@ class ExternalEditor:
                            response.status)
             return False
 
+
     def unlock(self, interactive=1):
         """Remove webdav lock from edited zope object"""
         if ( not self.did_lock ) and self.lock_token is None :
@@ -837,10 +855,12 @@ class ExternalEditor:
         self.did_lock = False
         return True
 
+
     def DAVunlock(self):
         headers = {'Lock-Token':self.lock_token}
         response = self.zopeRequest('UNLOCK', headers)
         return response
+
 
     def _get_authorization(self, host, method, selector, cookie, ssl,
                            old_response):
@@ -863,7 +883,7 @@ class ExternalEditor:
         # XXX undocumented functions
         chal = parse_keqv_list(parse_http_list(auth_header[7:]))
 
-        #get the user/password
+        # Get the user/password
         if self.identity is not None:
             username, password = self.identity
         else:
@@ -873,7 +893,7 @@ class ExternalEditor:
             password = askPassword(chal['realm'], username)
             self.identity = (username, password)
 
-        #compute the authorization
+        # Compute the authorization
         algorithm = chal.get('algorithm', 'MD5')
         if algorithm == 'MD5':
             H = lambda x: hashlib.md5(x).hexdigest()
@@ -906,6 +926,7 @@ class ExternalEditor:
 
         res += ', response="%s"' % response
         return res
+
 
     def zopeRequest(self, method, headers={}, body='', command=''):
         """Send a request back to Zope"""
@@ -1040,6 +1061,7 @@ class ExternalEditor:
 
             return response
 
+
     def editConfig(self):
         logger.info('Edit local configuration')
         # Read the configuration file
@@ -1094,7 +1116,10 @@ class ExternalEditor:
         os.system("%s %s" % (default_editor, user_config))
 
 
+
 title = 'Zope External Editor'
+
+
 
 def askRetryAfterError(response, operation, message=''):
     """Dumps response data"""
@@ -1105,7 +1130,10 @@ def askRetryAfterError(response, operation, message=''):
     return askRetryCancel('%s:\n%d %s\n%s' % (operation, response.status,
                                            response.reason, message))
 
+
+
 class EditorProcess:
+
     def __init__(self, command, contentfile, max_is_alive_counter,
                  lock_file_schemes):
         """Launch editor process"""
@@ -1140,6 +1168,7 @@ class EditorProcess:
         else:
             self.startEditor()
 
+
     def startEditorWin32(self):
         try:
             logger.debug('CreateProcess: %r', self.command)
@@ -1150,14 +1179,17 @@ class EditorProcess:
             fatalError('Error launching editor process\n'
                        '(%s):\n%s' % (self.command, e[2]))
 
+
     def startEditor(self):
         args = re.split(self.arg_re, self.command.strip())
         args = filter(None, args) # Remove empty elements
         self.pid = os.spawnvp(os.P_NOWAIT, args[0], args)
 
+
     def wait(self, timeout):
         """Wait for editor to exit or until timeout"""
         sleep(timeout)
+
 
     def isFileOpenWin32(self):
         try:
@@ -1173,6 +1205,7 @@ class EditorProcess:
         logger.info("File is not open : Editor is closed")
         return False
 
+
     def isPidUpWin32(self):
         if GetExitCodeProcess(self.handle) == 259:
             logger.info("Pid is up : Editor is still running")
@@ -1180,12 +1213,14 @@ class EditorProcess:
         logger.info("Pid is not up : Editor exited")
         return False
 
+
     def isFileOpen(self):
         """Test if File is locked (filesystem)"""
         logger.debug("test if the file edited is locked by filesystem")
         isFileOpenNum = popen2.Popen4('/bin/fuser %s' %
                                       self.command.split(' ')[-1]).wait()
         return isFileOpenNum == 0
+
 
     def isPidUp(self):
         """Test PID"""
@@ -1195,6 +1230,7 @@ class EditorProcess:
         except OSError:
             return False
         return exit_pid != self.pid
+
 
     def isFileLockedByLockFile(self):
         """Test Lock File (extra file)"""
@@ -1215,6 +1251,7 @@ class EditorProcess:
                 self.lock_file_schemes = [i]
                 return True
         return False
+
 
     def isAlive(self):
         """Returns true if the editor process is still alive
@@ -1245,6 +1282,8 @@ class EditorProcess:
             return True
         return False
 
+
+
 ## Platform specific declarations ##
 def has_tk():
     """Sets up a suitable tk root window if one has not
@@ -1262,6 +1301,8 @@ def has_tk():
             return 0
     return 1
 
+
+
 #askPassword is common to win32 and Posix
 def askPassword(realm, username):
     if has_tk():
@@ -1270,6 +1311,7 @@ def askPassword(realm, username):
                               (username, realm), show='*')
         has_tk()
         return r
+
 
 if win32:
     import Plugins # Assert dependancy
@@ -1335,6 +1377,7 @@ else: # Posix platform
             return r
 
 
+
 def fatalError(message, exit=1):
     """Show error message and exit"""
     global log_file
@@ -1357,6 +1400,8 @@ def fatalError(message, exit=1):
         debug_f.close()
     if exit:
         sys.exit(0)
+
+
 
 default_configuration = """
 # Zope External Editor helper application configuration
@@ -1510,6 +1555,8 @@ extension=.ppt
 editor=ooffice
 
 """ % __version__
+
+
 
 if __name__ == '__main__':
     args = sys.argv
