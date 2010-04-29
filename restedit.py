@@ -763,7 +763,7 @@ class ExternalEditor:
                     sys.exit()
 
             logger.error("Lock failed. Exit.")
-            msg = "%s " %(self.title)
+            msg = "%s " % self.title
             msg += ('Unable to lock the file on the server.\n'
                     ' This may be a network or proxy issue.')
             errorDialog(msg)
@@ -1114,7 +1114,6 @@ class ExternalEditor:
 
 
 
-title = 'Zope External Editor'
 
 
 
@@ -1281,55 +1280,54 @@ class EditorProcess:
 
 
 
-# Input/Ouput
+# User Input/Ouput
+TK_TITLE = "Restedit"
+
 def has_tk():
     """Sets up a suitable tk root window if one has not
        already been setup. Returns true if tk is happy,
        false if tk throws an error (like its not available)"""
-        # create a hidden root window to make Tk happy
+    # create a hidden root window to make Tkinter happy
     if not locals().has_key('tk_root'):
         try:
             global tk_root
             from Tkinter import Tk
             tk_root = Tk()
             tk_root.withdraw()
-            return 1
+            return True
         except:
-            return 0
-    return 1
+            return False
+    return True
 
 
 
 def askPassword(realm, username):
+    """Password dialog box"""
     if has_tk():
         from tkSimpleDialog import askstring
-        r = askstring(title, "Please enter the password for '%s' in '%s'" %
-                              (username, realm), show='*')
-        has_tk()
-        return r
+        pwd = askstring(TK_TITLE,
+                        "Please enter the password for '%s' in '%s'" %
+                        (username, realm), show='*')
+        return pwd
 
 
 
 def errorDialog(message):
     """Error dialog box"""
-    try:
-        if has_tk():
-            from tkMessageBox import showerror
-            showerror(title, message)
-            has_tk()
-    finally:
+    if has_tk():
+        from tkMessageBox import showerror
+        showerror(TK_TITLE, message)
+    else:
         print message
 
 
 
 def messageDialog(message):
-    """Error dialog box"""
-    try:
-        if has_tk():
-            from tkMessageBox import showerror
-            showerror(title, message)
-            has_tk()
-    finally:
+    """Message dialog box"""
+    if has_tk():
+        from tkMessageBox import showinfo
+        showinfo(TK_TITLE, message)
+    else:
         print message
 
 
@@ -1337,18 +1335,14 @@ def messageDialog(message):
 def askRetryCancel(message):
     if has_tk():
         from tkMessageBox import askretrycancel
-        r = askretrycancel(title, message)
-        has_tk() # ugh, keeps tk happy
-        return r
+        return askretrycancel(TK_TITLE, message)
 
 
 
 def askYesNo(message):
     if has_tk():
         from tkMessageBox import askyesno
-        r = askyesno(title, message)
-        has_tk() # must...make...tk...happy
-        return r
+        return askyesno(TK_TITLE, message)
 
 
 
