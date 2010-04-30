@@ -40,11 +40,12 @@ import glob
 import socket
 import base64
 from time import sleep
-from tempfile import mktemp, NamedTemporaryFile
 from ConfigParser import ConfigParser
 from httplib import HTTPConnection, HTTPSConnection,FakeSocket
-from urlparse import urlparse
+from optparse import OptionParser
+from tempfile import mktemp, NamedTemporaryFile
 from urllib2 import parse_http_list, parse_keqv_list
+from urlparse import urlparse
 
 
 
@@ -125,7 +126,9 @@ class ExternalEditor:
     did_lock = False
     tried_cleanup = False
 
-    def __init__(self, input_file):
+    def __init__(self, input_file=None):
+        """If input_file = None => Edit config"""
+
         self.input_file = input_file
         self.identity = None
         # Setup logging.
@@ -174,7 +177,7 @@ class ExternalEditor:
 
             # If there is no filename, the user edits the config file of
             # zopeEdit
-            if input_file=="":
+            if input_file is None:
                 self.editConfig()
                 sys.exit(0)
 
@@ -319,7 +322,8 @@ class ExternalEditor:
             if getattr(self, 'clean_up', 1):
                 try:
                     exc, exc_data = sys.exc_info()[:2]
-                    os.remove(self.input_file)
+                    if self.input_file is not None:
+                        os.remove(self.input_file)
                 except OSError:
                     # Sometimes we aren't allowed to delete it
                     raise exc, exc_data
@@ -1527,20 +1531,25 @@ editor=ooffice
 
 
 if __name__ == '__main__':
-    args = sys.argv
 
-    if '--version' in args or '-v' in args:
-        credits = ('Zope External Editor %s\n'
-                   'By Casey Duncan, Zope Corporation\n'
-                   'http://www.zope.com/\n'
-                   'This version is maintained by atReal\n'
-                   'http://www.atreal.net') % __version__
-        errorDialog(credits)
-        sys.exit()
-    if len(sys.argv)>=2:
-        input_file = sys.argv[1]
+    # Options initialisation
+    usage = '%prog <file>'
+    description = 'RESTful External Editor'
+    parser = OptionParser(usage, version=__version__, description=description)
+
+    # Parse !
+    _, args = parser.parse_args()
+
+    # Input file
+    if len(args) == 0:
+        input_file = None
+    elif len(args) == 1:
+        input_file = args[0]
     else:
-        input_file=""
+        parser.print_help()
+        sys.exit(1)
+
+    # Go go go
     try:
         ExternalEditor(input_file).launch()
     except (KeyboardInterrupt, SystemExit):
