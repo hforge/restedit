@@ -15,8 +15,6 @@
 """Restedit, an External Editor Helper Application based on zopeedit.py:
 http://plone.org/products/zope-externaleditor-client"""
 
-__version__ = '0.10.2'
-
 import sys
 win32 = sys.platform == 'win32'
 
@@ -49,12 +47,14 @@ from urlparse import urlparse
 
 
 
+# Constantes / global variables
+__version__ = '0.10.2'
+TK_TITLE = "Restedit"
 LOG_LEVELS = {'debug': logging.DEBUG,
               'info': logging.INFO,
               'warning': logging.WARNING,
               'error': logging.ERROR,
               'critical': logging.CRITICAL}
-
 logger = logging.getLogger('zopeedit')
 log_file = None
 
@@ -1085,7 +1085,7 @@ class ExternalEditor:
                     sys.exit(0)
                 create_config_file = True
             else:
-                if askYesNo("Do you want to replace your configuration file`\n"
+                if askYesNo("Do you want to replace your configuration file "
                             "with the default one ?"):
                     create_config_file = True
                     logger.info("Replace the configuration file with the "
@@ -1100,7 +1100,7 @@ class ExternalEditor:
 
         else:
             user_config = os.path.expanduser('~/.zope-external-edit')
-            if askYesNo("Do you want to replace your configuration file`\n"
+            if askYesNo("Do you want to replace your configuration file "
                         "with the default one ?"):
                 logger.info("Replace the configuration file with the default "
                             "one.")
@@ -1285,8 +1285,6 @@ class EditorProcess:
 
 
 # User Input/Ouput
-TK_TITLE = "Restedit"
-
 def has_tk():
     """Sets up a suitable tk root window if one has not
        already been setup. Returns true if tk is happy,
@@ -1305,6 +1303,11 @@ def has_tk():
 
 
 
+def tk_flush():
+    tk_root.update()
+
+
+
 def askPassword(realm, username):
     """Password dialog box"""
     if has_tk():
@@ -1312,6 +1315,7 @@ def askPassword(realm, username):
         pwd = askstring(TK_TITLE,
                         "Please enter the password for '%s' in '%s'" %
                         (username, realm), show='*')
+        tk_flush()
         return pwd
 
 
@@ -1321,6 +1325,7 @@ def errorDialog(message):
     if has_tk():
         from tkMessageBox import showerror
         showerror(TK_TITLE, message)
+        tk_flush()
     else:
         print message
 
@@ -1331,6 +1336,7 @@ def messageDialog(message):
     if has_tk():
         from tkMessageBox import showinfo
         showinfo(TK_TITLE, message)
+        tk_flush()
     else:
         print message
 
@@ -1339,15 +1345,18 @@ def messageDialog(message):
 def askRetryCancel(message):
     if has_tk():
         from tkMessageBox import askretrycancel
-        return askretrycancel(TK_TITLE, message)
+        response = askretrycancel(TK_TITLE, message)
+        tk_flush()
+        return response
 
 
 
 def askYesNo(message):
     if has_tk():
         from tkMessageBox import askyesno
-        return askyesno(TK_TITLE, message)
-
+        response = askyesno(TK_TITLE, message)
+        tk_flush()
+        return response
 
 
 def fatalError(message, exit=True):
