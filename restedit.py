@@ -122,8 +122,8 @@ class Configuration:
 
 class ExternalEditor:
 
-    did_lock = 0
-    tried_cleanup = 0
+    did_lock = False
+    tried_cleanup = False
 
     def __init__(self, input_file):
         self.input_file = input_file
@@ -289,7 +289,7 @@ class ExternalEditor:
             body_f = open(content_file, 'wb')
             shutil.copyfileobj(in_f, body_f)
             self.content_file = content_file
-            self.saved = 0
+            self.saved = False
             body_f.close()
             in_f.close()
 
@@ -311,7 +311,7 @@ class ExternalEditor:
                                'Make sure openssl is installed '
                                'and reinstall Python.')
             self.lock_token = None
-            self.did_lock = 0
+            self.did_lock = False
         except:
             # for security, always delete the input file even if
             # a fatal error occurs, unless explicitly stated otherwise
@@ -346,7 +346,7 @@ class ExternalEditor:
                              time.asctime(time.localtime())))
                 return True
             except OSError:
-                if self.tried_cleanup == 1 :
+                if self.tried_cleanup:
                     logger.exception("Failed to clean up %r at %s" %
                                      (self.content_file,
                                       time.asctime(time.localtime())))
@@ -360,7 +360,7 @@ class ExternalEditor:
                     # Some editors close first and save the file ; this may
                     # last few seconds
                     time.sleep(10)
-                    self.tried_cleanup = 1
+                    self.tried_cleanup = True
                     # This is the first try. It may be an editor issue. Let's
                     # retry later.
                     return self.cleanContentFile()
@@ -431,7 +431,7 @@ class ExternalEditor:
                     key = OpenKeyEx(HKEY_CLASSES_ROOT,
                                     classname+'\\Shell')
                     index = 0
-                    while 1:
+                    while True:
                         try:
                             subkey = EnumKey(key, index)
                             index += 1
@@ -549,7 +549,7 @@ class ExternalEditor:
             fatalError('Editor did not launch properly.\n'
                        'External editor lost connection '
                        'to editor process.\n'
-                       '(%s)' % command, exit=0)
+                       '(%s)' % command, exit=False)
 
         unlock_success = self.unlock()
 
@@ -604,7 +604,7 @@ class ExternalEditor:
     def monitorFile(self):
         final_loop = 0
 
-        while 1:
+        while True:
             if not final_loop:
                 self.editor.wait(self.save_interval)
             mtime = os.path.getmtime(self.content_file)
@@ -612,7 +612,7 @@ class ExternalEditor:
             if mtime != self.last_mtime:
                 logger.debug("File is dirty : changes detected !")
                 self.dirty_file = True
-                launch_success = 1
+                launch_success = True
                 if self.versionControl():
                     logger.info("New version created successfully")
                 else:
@@ -633,7 +633,7 @@ class ExternalEditor:
                     # Check wether a file hasn't been saved before closing
                     if mtime != self.last_saved_mtime:
                         self.dirty_file = True
-                        launch_success = 1
+                        launch_success = True
                         self.saved = self.putChanges()
                         self.last_mtime = mtime
                         if self.saved:
@@ -671,7 +671,7 @@ class ExternalEditor:
                         'Attempt to save to Zope anyway ?')
                 if not askYesNo(msg):
                     logger.error("PutChanges : Could not acquire lock !")
-                    return 0
+                    return False
 
         f = open(self.content_file, 'rb')
         body = f.read()
@@ -695,9 +695,9 @@ class ExternalEditor:
             else:
                 logger.error('Could not save to Zope\n'
                              'Error during HTTP PUT')
-                return 0
+                return False
         logger.info("File successfully saved back to the intranet")
-        return 1
+        return True
 
 
     def lock(self):
@@ -740,7 +740,7 @@ class ExternalEditor:
 
             if dav_lock_response / 100 == 2:
                 logger.info("Lock: OK")
-                self.did_lock = 1
+                self.did_lock = True
                 return True
 
             msg = "%s " %(self.title)
@@ -1346,7 +1346,7 @@ def askYesNo(message):
 
 
 
-def fatalError(message, exit=1):
+def fatalError(message, exit=True):
     """Show error message and exit"""
     global log_file
     msg = 'FATAL ERROR: %s' % message
