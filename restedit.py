@@ -28,7 +28,6 @@ if win32:
 
 import os, re, popen2
 import time
-import rfc822
 import traceback
 import logging
 import hashlib
@@ -126,10 +125,9 @@ class ExternalEditor:
     did_lock = False
     tried_cleanup = False
 
-    def __init__(self, input_file=None):
-        """If input_file = None => Edit config"""
+    def __init__(self, input_filename=None):
+        """If input_filename = None => Edit config"""
 
-        self.input_file = input_file
         self.identity = None
 
         # Setup logging.
@@ -143,7 +141,7 @@ class ExternalEditor:
         logger.setLevel(logging.DEBUG)
 
         logger.info("ZopeEdit version %s maintained by atReal." % __version__ )
-        logger.info('Opening %r.', self.input_file)
+        logger.info('Opening %r.', input_filename)
 
         try:
             # Read the configuration file
@@ -174,15 +172,14 @@ class ExternalEditor:
 
             # If there is no filename, the user edits the config file of
             # zopeEdit
-            if input_file is None:
+            if input_filename is None:
                 self.editConfig()
                 sys.exit(0)
 
             # Open the input file and read the metadata headers
-            in_f = open(self.input_file, 'rb')
-            m = rfc822.Message(in_f)
+            input_file = open(input_filename, 'rb')
 
-            self.metadata = metadata = m.dict.copy()
+            self.metadata = metadata = read_metadata(input_file)
             logger.debug("metadata: %s" % repr(self.metadata))
 
             # Parse the incoming url
@@ -288,19 +285,19 @@ class ExternalEditor:
             logger.debug('Destination filename will be: %r.', content_file)
 
             body_f = open(content_file, 'wb')
-            shutil.copyfileobj(in_f, body_f)
+            shutil.copyfileobj(input_file, body_f)
             self.content_file = content_file
             self.saved = False
             body_f.close()
-            in_f.close()
+            input_file.close()
 
             if self.clean_up:
                 try:
-                    logger.debug('Cleaning up %r.', self.input_file)
-                    os.chmod(self.input_file, 0777)
-                    os.remove(self.input_file)
+                    logger.debug('Cleaning up %r.', input_filename)
+                    os.chmod(input_filename, 0777)
+                    os.remove(input_filename)
                 except OSError:
-                    logger.exception('Failed to clean up %r.', self.input_file)
+                    logger.exception('Failed to clean up %r.', input_filename)
                     pass # Sometimes we aren't allowed to delete it
 
             if self.ssl:
@@ -320,8 +317,8 @@ class ExternalEditor:
             if getattr(self, 'clean_up', True):
                 try:
                     exc, exc_data = sys.exc_info()[:2]
-                    if self.input_file is not None:
-                        os.remove(self.input_file)
+                    if input_filename is not None:
+                        os.remove(input_filename)
                 except OSError:
                     # Sometimes we aren't allowed to delete it
                     raise exc, exc_data
@@ -1283,6 +1280,22 @@ class EditorProcess:
 
 
 
+def read_metadata(input_file):
+    """Read the metadata from the input_file
+    """
+    metadata = {}
+    while True:
+        line = input_file.readline()
+
+        # The end ?
+        if line == '\n':
+            return metadata
+
+        header_name, header_body = line.split(':', 1)
+        metadata[header_name.strip()] = header_body.strip()
+
+
+
 # User Input/Ouput
 def has_tk():
     """Sets up a suitable tk root window if one has not
@@ -1550,16 +1563,16 @@ if __name__ == '__main__':
 
     # Input file
     if len(args) == 0:
-        input_file = None
+        input_filename = None
     elif len(args) == 1:
-        input_file = args[0]
+        input_filename = args[0]
     else:
         parser.print_help()
         sys.exit(1)
 
     # Go go go
     try:
-        ExternalEditor(input_file).launch()
+        ExternalEditor(input_filename).launch()
     except (KeyboardInterrupt, SystemExit):
         pass
     except:
