@@ -41,7 +41,7 @@ from time import sleep
 from ConfigParser import ConfigParser
 from httplib import HTTPConnection, HTTPSConnection,FakeSocket
 from optparse import OptionParser
-from tempfile import mktemp, NamedTemporaryFile
+from tempfile import mktemp
 from urllib2 import parse_http_list, parse_keqv_list
 from urlparse import urlparse
 
@@ -131,9 +131,9 @@ class ExternalEditor:
 
         self.input_file = input_file
         self.identity = None
+
         # Setup logging.
         global log_file
-        #log_file = NamedTemporaryFile(suffix='-zopeedit-log.txt')
         log_file = mktemp(suffix='-zopeedit-log.txt')
         log_filehandler = logging.FileHandler(log_file)
         log_formatter = logging.Formatter(
@@ -168,12 +168,9 @@ class ExternalEditor:
                 else:
                     logger.info('Using user configuration file: %r.',
                                  config_path)
-
             else:
                 config_path = os.path.expanduser('~/.zope-external-edit')
-
             self.config = Configuration(config_path)
-
 
             # If there is no filename, the user edits the config file of
             # zopeEdit
@@ -187,10 +184,12 @@ class ExternalEditor:
 
             self.metadata = metadata = m.dict.copy()
             logger.debug("metadata: %s" % repr(self.metadata))
-            # parse the incoming url
+
+            # Parse the incoming url
             scheme, self.host, self.path = urlparse(metadata['url'])[:3]
-            # keep the full url for proxy
-            self.url=metadata['url']
+
+            # Keep the full url for proxy
+            self.url = metadata['url']
             self.ssl = scheme == 'https'
 
             # Get all configuration options
@@ -205,17 +204,16 @@ class ExternalEditor:
             logger.info("all options : %r" % self.options)
 
             # get proxy from options
-            self.proxy=self.options.get('proxy','')
+            self.proxy = self.options.get('proxy','')
             if self.proxy == '':
                 if win32:
                     pass
-                else:
-                    if os.environ.has_key("http_proxy"):
-                        self.proxy=os.environ["http_proxy"]
+                elif os.environ.has_key("http_proxy"):
+                    self.proxy=os.environ["http_proxy"]
             if self.proxy.startswith('http://'):
-                self.proxy=self.proxy[7:]
+                self.proxy = self.proxy[7:]
             if self.proxy.find('/') > -1:
-                self.proxy=self.proxy[:self.proxy.find('/')]
+                self.proxy = self.proxy[:self.proxy.find('/')]
             logger.debug("Proxy set to : %s" % self.proxy)
 
             # lock file name for editors that create a lock file
@@ -319,7 +317,7 @@ class ExternalEditor:
             # for security, always delete the input file even if
             # a fatal error occurs, unless explicitly stated otherwise
             # in the config file
-            if getattr(self, 'clean_up', 1):
+            if getattr(self, 'clean_up', True):
                 try:
                     exc, exc_data = sys.exc_info()[:2]
                     if self.input_file is not None:
@@ -1065,6 +1063,7 @@ class ExternalEditor:
 
     def editConfig(self):
         logger.info('Edit local configuration')
+
         # Read the configuration file
         if win32:
             # Check the home dir first and then the program dir
@@ -1097,7 +1096,6 @@ class ExternalEditor:
                     output_config_file.write( l )
                 input_config_file.close()
                 output_config_file.close()
-
         else:
             user_config = os.path.expanduser('~/.zope-external-edit')
             if askYesNo("Do you want to replace your configuration file "
@@ -1107,6 +1105,7 @@ class ExternalEditor:
                 output_config = open(user_config, 'w')
                 output_config.write(default_configuration)
                 output_config.close()
+
         # launch default editor with the user configuration file
         default_editor = self.config.config.get('general','config_editor','')
         if not default_editor:
