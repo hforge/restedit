@@ -36,14 +36,15 @@ import shutil
 import glob
 import socket
 import base64
-from time import sleep
+from datetime import datetime
+from time import sleep, mktime
 from ConfigParser import ConfigParser
 from httplib import HTTPConnection, HTTPSConnection,FakeSocket
 from optparse import OptionParser
 from tempfile import mktemp
 from urllib2 import parse_http_list, parse_keqv_list
 from urlparse import urlparse
-
+from email.utils import parsedate_tz, mktime_tz, formatdate
 
 
 # Constantes / global variables
@@ -122,7 +123,6 @@ class Configuration:
 
 class ExternalEditor:
 
-    did_lock = False
     tried_cleanup = False
 
     def __init__(self, input_filename=None):
@@ -185,6 +185,11 @@ class ExternalEditor:
             # Parse the incoming url
             scheme, self.host, self.path = urlparse(metadata['url'])[:3]
 
+            # Get last-modified
+            last_modified = metadata['last-modified']
+            self.last_modified = http_date_to_datetime(last_modified)
+            logger.debug('last_modified: %s' % str(self.last_modified))
+
             # Keep the full url for proxy
             self.url = metadata['url']
             self.ssl = scheme == 'https'
@@ -221,25 +226,8 @@ class ExternalEditor:
             self.proxy_user = self.options.get('proxy_user', '')
             self.proxy_pass = self.options.get('proxy_pass', '')
 
-            # create a new version when the file is closed ?
-            self.version_control = int(self.options.get('version_control', 0 ))
-            self.version_command = self.options.get('version_command',
-                                                    '/saveasnewversion')
-            self.version_command += ('?versioncomment=ZopeEdit%%20%s' %
-                                     __version__)
-
             # Should we keep the log file?
             self.keep_log = int(self.options.get('keep_log', 1))
-
-            # Should we inform the user about lock issues ans allow him to
-            # edit the file ?
-            self.manage_locks = int(self.options.get('manage_locks',1))
-
-            # Should we always borrow the lock when it does exist ?
-            self.use_locks = int(self.options.get('use_locks', 1))
-            self.always_borrow_locks = int(
-                                    self.options.get('always_borrow_locks', 1))
-            self.lock_timeout = self.options.get('lock_timeout', 'infinite')
 
             # Should we clean-up temporary files ?
             self.clean_up = int(self.options.get('cleanup_files', 1))
@@ -308,8 +296,6 @@ class ExternalEditor:
                     fatalError('SSL support is not available on this system. '
                                'Make sure openssl is installed '
                                'and reinstall Python.')
-            self.lock_token = None
-            self.did_lock = False
         except:
             # for security, always delete the input file even if
             # a fatal error occurs, unless explicitly stated otherwise
@@ -326,12 +312,6 @@ class ExternalEditor:
 
 
     def __del__(self):
-        if self.did_lock:
-            # Try not to leave dangling locks on the server
-            try:
-                self.unlock(interactive=0)
-            except:
-                logger.exception('Failure during unlock.')
         logger.info("ZopeEdit ends at: %s" % time.asctime(time.localtime()) )
 
 
@@ -493,9 +473,6 @@ class ExternalEditor:
 
         command = self.getEditorCommand()
 
-        # lock before opening the file in the editor
-        lock_success = self.lock()
-
         # Extract the executable name from the command
         if win32:
             if command.find('\\') != -1:
@@ -550,8 +527,6 @@ class ExternalEditor:
                        'to editor process.\n'
                        '(%s)' % command, exit=False)
 
-        unlock_success = self.unlock()
-
         # Check is a file has been modified but not saved back to zope
         if self.dirty_file:
             msg = "%s " %(self.title)
@@ -585,17 +560,6 @@ class ExternalEditor:
                 self.keep_log = True
                 logger.exception("User decides to keep logs and temporary "
                                  "working copy")
-        elif ( not unlock_success ) and self.clean_up:
-            logger.exception("Unlock failed and we have to clean up files")
-            msg = "%s " %(self.title)
-            msg += "Local working copy : %s \n " %(self.content_file)
-            msg += "Your intranet file hasn't been unlocked\n "
-            msg += "Do you want to keep your logs and temporary working copy ?"
-            if askYesNo(msg):
-                self.clean_up = False
-                self.keep_log = True
-                logger.exception("User decides to keep logs and temporary "
-                                 "working copy")
 
         self.cleanContentFile()
 
@@ -612,12 +576,8 @@ class ExternalEditor:
                 logger.debug("File is dirty : changes detected !")
                 self.dirty_file = True
                 launch_success = True
-                if self.versionControl():
-                    logger.info("New version created successfully")
-                else:
-                    logger.debug("No new version created")
 
-                self.saved = self.putChanges()
+                self.saved = self.put_changes()
                 self.last_mtime = mtime
                 if self.saved:
                     self.last_saved_mtime = mtime
@@ -633,7 +593,7 @@ class ExternalEditor:
                     if mtime != self.last_saved_mtime:
                         self.dirty_file = True
                         launch_success = True
-                        self.saved = self.putChanges()
+                        self.saved = self.put_changes()
                         self.last_mtime = mtime
                         if self.saved:
                             self.last_saved_mtime = mtime
@@ -656,206 +616,42 @@ class ExternalEditor:
                     logger.info("Final loop")
 
 
-    def putChanges(self):
-        """Save changes to the file back to Zope"""
-        logger.info("putChanges at: %s" % time.asctime(time.localtime()) )
-        if self.use_locks and self.lock_token is None:
-            # We failed to get a lock initially, so try again before saving
-            logger.warning("PutChanges : lock initially failed. Lock before "
-                           "saving.")
-            if not self.lock():
-                # Confirm save without lock
-                msg = "%s " %(self.title)
-                msg += ('Could not acquire lock.\n'
-                        'Attempt to save to Zope anyway ?')
-                if not askYesNo(msg):
-                    logger.error("PutChanges : Could not acquire lock !")
-                    return False
+    def put_changes(self):
+        """Save changes to the file back to Ikaaro"""
+        logger.info("put_changes at: %s" % time.asctime(time.localtime()))
 
-        f = open(self.content_file, 'rb')
-        body = f.read()
+        # Read the new body
+        body = open(self.content_file, 'rb')
+        body = body.read()
         logger.info("Document is %s bytes long" % len(body) )
-        f.close()
-        headers = {'Content-Type':
-                   self.metadata.get('content_type', 'text/plain')}
 
-        if self.lock_token is not None:
-            headers['If'] = '<%s> (<%s>)' % (self.path, self.lock_token)
+        # Send with the header "If-Unmodified-Since"
+        headers = {'Content-Type': self.metadata.get('content_type',
+                                                     'text/plain'),
+                   'If-Unmodified-Since': datetime_to_http_date(
+                                                self.last_modified) }
+        response = self.send_request('PUT', headers, body)
 
-        response = self.zopeRequest('PUT', headers, body)
-        del body # Don't keep the body around longer then we need to
+        # Don't keep the body around longer then we need to
+        del body
 
+        # An error ?
         if response.status / 100 != 2:
-            # Something went wrong
-            if (int(self.options.get('manage_locks', 1)) and
-                askRetryAfterError(response, 'Could not save to Zope.\n'
-                                            'Error occurred during HTTP put')):
-                return self.putChanges()
+            if askRetryAfterError(response, 'Could not transfer the changes\n'
+                                            'Error occurred during HTTP put'):
+                return self.put_changes()
             else:
-                logger.error('Could not save to Zope\n'
-                             'Error during HTTP PUT')
+                logger.error('Could not transfer the changes\n'
+                             'Error occurred during HTTP PUT')
                 return False
+
+        # Get the new Last-Modified
+        last_modified = response.getheader('Last-Modified')
+        self.last_modified = http_date_to_datetime(last_modified)
+
+        # All OK
         logger.info("File successfully saved back to the intranet")
         return True
-
-
-    def lock(self):
-        """Apply a webdav lock to the object in Zope"""
-        logger.debug("doLock at: %s" % time.asctime(time.localtime()) )
-        if not self.use_locks:
-            return True
-
-        if self.metadata.get('lock-token'):
-            # A lock token came down with the data, so the object is
-            # already locked
-            if not self.manage_locks:
-                logger.critical('object already locked : lock tocken not '
-                                'empty\nExit')
-                msg = "%s " %(self.title)
-                msg += ('This object is already locked.\n'
-                        'Please unlock it or contact your administrator')
-                errorDialog(msg)
-                sys.exit()
-            # See if we can borrow the lock
-            msg = "%s " %(self.title)
-            msg += 'This object is already locked by you in another session.'
-            msg += '\n Do you want to borrow this lock and continue?'
-            if (self.always_borrow_locks
-                or self.metadata.get('borrow_lock')
-                or askYesNo(msg)):
-                self.lock_token = 'opaquelocktoken:%s' \
-                                  % self.metadata['lock-token']
-            else:
-                logger.critical("File locked and user don't want to borrow "
-                                "the lock.")
-                sys.exit()
-
-        if self.lock_token is not None:
-            logger.warning("File successfully locked")
-            return True
-
-        while self.manage_locks and not self.did_lock :
-            dav_lock_response = self.DAVLock()
-
-            if dav_lock_response / 100 == 2:
-                logger.info("Lock: OK")
-                self.did_lock = True
-                return True
-
-            msg = "%s " %(self.title)
-            if dav_lock_response == 423:
-                logger.warning("Lock: object already locked")
-                msg += '(Object already locked)'
-            else:
-                logger.error("Lock: failed to lock object: response status %s"
-                             % dav_lock_response)
-                msg += ('Unable to get a lock on the server (return value %s)'
-                        % dav_lock_response)
-
-            if self.manage_locks:
-                msg += '\nDo you want to retry'
-                if askRetryCancel(msg):
-                    logger.info("Retry to lock")
-                    continue
-                else:
-                    logger.critical("Unable to lock the file ; abort")
-                    sys.exit()
-
-            logger.error("Lock failed. Exit.")
-            msg = "%s " % self.title
-            msg += ('Unable to lock the file on the server.\n'
-                    ' This may be a network or proxy issue.')
-            errorDialog(msg)
-            sys.exit()
-
-
-    def DAVLock(self):
-        """Do effectively lock the object"""
-        logger.debug("doLock at: %s" % time.asctime(time.localtime()) )
-
-        headers = {'Content-Type':'text/xml; charset="utf-8"',
-                   'Timeout': self.lock_timeout,
-                   'Depth':'0',
-                  }
-        body = ('<?xml version="1.0" encoding="utf-8"?>\n'
-                '<d:lockinfo xmlns:d="DAV:">\n'
-                '  <d:lockscope><d:exclusive/></d:lockscope>\n'
-                '  <d:locktype><d:write/></d:locktype>\n'
-                '  <d:depth>infinity</d:depth>\n'
-                '  <d:owner>\n'
-                '  <d:href>Zope External Editor</d:href>\n'
-                '  </d:owner>\n'
-                '</d:lockinfo>'
-                )
-
-        response = self.zopeRequest('LOCK', headers, body)
-        dav_lock_response = response.status
-
-        if dav_lock_response / 100 == 2:
-            logger.info("Lock success.")
-            # We got our lock, extract the lock token and return it
-            reply = response.read()
-            token_start = reply.find('>opaquelocktoken:')
-            token_end = reply.find('<', token_start)
-            if token_start > 0 and token_end > 0:
-                self.lock_token = reply[token_start+1:token_end]
-
-        return dav_lock_response
-
-
-    def versionControl(self):
-        """ If version_control is enabled, ZopeEdit will try to automatically
-            create a new version of the file.
-            The version is created only if the file is modified,
-            just before the first save.
-        """
-        if not self.version_control:
-            logger.debug("versionControl: version_control is False : %s" %
-                         self.version_control)
-            return False
-        if self.saved:
-            logger.debug("versionControl: don't create a version if already "
-                         "saved")
-            return False
-        response=self.zopeRequest('GET',command='%s' % self.version_command)
-        logger.debug("versionControl : return code of new version is %s" %
-                     response.status)
-        if response.status==302:
-            return True
-        else:
-            logger.warning("Creation of version failed : response status %s" %
-                           response.status)
-            return False
-
-
-    def unlock(self, interactive=1):
-        """Remove webdav lock from edited zope object"""
-        if ( not self.did_lock ) and self.lock_token is None :
-            return True # nothing to do
-        response =  self.DAVunlock()
-        status = int(response.status)
-        logger.debug("response : %s status : %s status/100: %s" %
-                     (response, status, status / 100))
-        while status / 100 != 2:
-            #unlock failed
-            logger.error("Unlock failed at: %s did_lock=%s status=%s" %
-                        (time.asctime(time.localtime()),
-                         self.did_lock, status))
-            if askRetryAfterError(response, "ZopeEdit can't unlock your "
-                                            "file. Retry ?\n "):
-                status = self.DAVunlock().status
-                continue
-            else :
-                return False
-        logger.info("Unlock successfully. did_lock = %s" % self.did_lock )
-        self.did_lock = False
-        return True
-
-
-    def DAVunlock(self):
-        headers = {'Lock-Token':self.lock_token}
-        response = self.zopeRequest('UNLOCK', headers)
-        return response
 
 
     def _get_authorization(self, host, method, selector, cookie, ssl,
@@ -924,18 +720,19 @@ class ExternalEditor:
         return res
 
 
-    def zopeRequest(self, method, headers={}, body='', command=''):
-        """Send a request back to Zope"""
+    def send_request(self, method, headers={}, body=''):
+        """Send a request back to Ikaaro"""
+
+        # Get host/url
         if self.proxy == '':
             host = self.host
             url = self.path
         else:
             host = self.proxy
             url = self.url
-        url += command
-        logger.debug("zopeRequest: url = %s" % url)
-        logger.debug("zopeRequest: method = %s" % method)
-        logger.debug("zopeRequest: command = %s" % command)
+        logger.debug("send_request: url = %s" % url)
+        logger.debug("send_request: method = %s" % method)
+
         try:
             if self.ssl and self.proxy:
                 # XXX
@@ -943,16 +740,15 @@ class ExternalEditor:
                 proxy_host, proxy_port = self.proxy.split(':')
                 proxy_port = int(proxy_port)
                 taburl = url.split('/')
-                if len(taburl[2].split(':'))==2:
-                    port=int(taburl[2].split(':')[1])
-                    host=taburl[2].split(':')[0]
+                if len(taburl[2].split(':')) == 2:
+                    port = int(taburl[2].split(':')[1])
+                    host = taburl[2].split(':')[0]
                 else:
-                    if taburl[0]=='https:':
+                    if taburl[0] == 'https:':
                         port = 443
                     else:
-                        port=80
-                    host=taburl[2]
-
+                        port = 80
+                    host = taburl[2]
 
                 proxy_authorization = ''
                 if self.proxy_user and self.proxy_passwd:
@@ -965,19 +761,20 @@ class ExternalEditor:
                               __version__)
                 proxy_pieces = (proxy_connect + proxy_authorization +
                                 user_agent + '\r\n')
-                #now connect, very simple recv and error checking
-                proxy=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+                # Now connect, very simple recv and error checking
+                proxy = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
                 proxy.connect((proxy_host,proxy_port))
                 proxy.sendall(proxy_pieces)
-                response=proxy.recv(8192)
-                status=response.split()[1]
-                if status!=str(200):  raise 'Error status=',str(status)
-                #trivial setup for ssl socket
+                response = proxy.recv(8192)
+                status = response.split()[1]
+                if status != str(200):
+                    raise 'Error status=', str(status)
+                # Trivial setup for ssl socket
                 ssl = socket.ssl(proxy, None, None)
                 sock = FakeSocket(proxy, ssl)
-                #initalize httplib and replace with your socket
-                h=HTTPConnection(proxy_host,proxy_port)
-                h.sock=sock
+                # Initalize httplib and replace with your socket
+                h = HTTPConnection(proxy_host,proxy_port)
+                h.sock = sock
                 h.putrequest(method, url)
                 h.putheader('User-Agent', 'Zope External Editor/%s' %
                                           __version__)
@@ -985,7 +782,7 @@ class ExternalEditor:
                 for header, value in headers.items():
                     h.putheader(header, value)
                 h.putheader("Content-Length", str(len(body)))
-                #authentication
+                # Authentication
                 auth_header = self.metadata.get('auth','')
                 if auth_header.lower().startswith('basic'):
                     h.putheader("Authorization", self.metadata['auth'])
@@ -995,7 +792,7 @@ class ExternalEditor:
                                                 False, auth_header)
                     if authorization is not None:
                         h.putheader("Authorization", authorization)
-                #cookie
+                # Cookie
                 if self.metadata.get('cookie'):
                     h.putheader("Cookie", self.metadata['cookie'])
 
@@ -1005,7 +802,7 @@ class ExternalEditor:
 
             if self.ssl and not self.proxy:
                 h = HTTPSConnection(host)
-            else :
+            else:
                 h = HTTPConnection(host)
 
             #h.putrequest(method, self.path)
@@ -1015,7 +812,7 @@ class ExternalEditor:
             for header, value in headers.items():
                 h.putheader(header, value)
             h.putheader("Content-Length", str(len(body)))
-            #authentication
+            # Authentication
             auth_header = self.metadata.get('auth','')
             if auth_header.lower().startswith('basic'):
                 h.putheader("Authorization", self.metadata['auth'])
@@ -1026,7 +823,7 @@ class ExternalEditor:
                                             auth_header)
                 if authorization is not None:
                     h.putheader("Authorization", authorization)
-            #cookie
+            # Cookie
             if self.metadata.get('cookie'):
                 h.putheader("Cookie", self.metadata['cookie'])
 
@@ -1114,9 +911,6 @@ class ExternalEditor:
 
 
 
-
-
-
 def askRetryAfterError(response, operation, message=''):
     """Dumps response data"""
     if not message \
@@ -1143,17 +937,13 @@ class EditorProcess:
         self.is_alive_by_file = None; # do we check file or pid ?
         self.is_alive_counter = 0 #number of isAlive Cycles
         if win32:
-                self.methods={
-                1: self.isFileLockedByLockFile,
-                2: self.isFileOpenWin32,
-                3: self.isPidUpWin32
-            }
+            self.methods = { 1: self.isFileLockedByLockFile,
+                             2: self.isFileOpenWin32,
+                             3: self.isPidUpWin32 }
         else:
-            self.methods={
-                1: self.isFileLockedByLockFile,
-                2: self.isFileOpen,
-                3: self.isPidUp
-            }
+            self.methods = { 1: self.isFileLockedByLockFile,
+                             2: self.isFileOpen,
+                             3: self.isPidUp }
         self.nb_methods = 3
         self.lock_detected = False
         self.selected_method = False
@@ -1296,6 +1086,22 @@ def read_metadata(input_file):
 
 
 
+def http_date_to_datetime(http_date):
+    # RFC 1945
+    result = parsedate_tz(http_date)
+    result = mktime_tz(result)
+    return datetime.fromtimestamp(result)
+
+
+
+def datetime_to_http_date(value):
+    # RFC 1945
+    result = value.timetuple()
+    result = mktime(result)
+    return formatdate(result, usegmt=True)
+
+
+
 # User Input/Ouput
 def has_tk():
     """Sets up a suitable tk root window if one has not
@@ -1403,37 +1209,11 @@ default_configuration = """
 # General configuration options
 version = %s
 
-# Create a new version when the file is closed ?
-# version_control = 0
-
 # Temporary file cleanup. Set to false for debugging or
 # to waste disk space. Note: setting this to false is a
 # security risk to the zope server
 # cleanup_files = 1
 # keep_log = 1
-
-# Use WebDAV locking to prevent concurrent editing by
-# different users. Disable for single user use or for
-# better performance
-# set use_locks = 0 if you use a proxy that doesn't allow wabdav LOCKs
-# use_locks = 1
-
-# If you wish to inform the user about locks issues
-# set manage_locks = 1
-# This will allow the user to borrow a lock or edit a locked file
-# without informing the administrator
-# manage_locks = 1
-
-# To suppress warnings about borrowing locks on objects
-# locked by you before you began editing you can
-# set this flag. This is useful for applications that
-# use server-side locking, like CMFStaging
-# always_borrow_locks = 1
-
-# Duration of file Lock : 1 week = 604800 seconds
-# If this option is removed, fall back on 'infinite' zope default
-# Default 'infinite' value is about 12 minutes
-lock_timeout = 604800
 
 # Proxy : if nor set, it may be taken from http_proxy env
 #proxy=http://www.myproxy.com:8080
