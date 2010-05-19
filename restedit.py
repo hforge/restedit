@@ -47,6 +47,7 @@ from urlparse import urlparse
 from email.utils import parsedate_tz, mktime_tz, formatdate
 
 
+
 # Constantes / global variables
 __version__ = '0.10.2'
 TK_TITLE = "Restedit"
@@ -55,7 +56,7 @@ LOG_LEVELS = {'debug': logging.DEBUG,
               'warning': logging.WARNING,
               'error': logging.ERROR,
               'critical': logging.CRITICAL}
-logger = logging.getLogger('zopeedit')
+logger = logging.getLogger('restedit')
 log_file = None
 
 
@@ -132,7 +133,7 @@ class ExternalEditor:
 
         # Setup logging.
         global log_file
-        log_file = mktemp(suffix='-zopeedit-log.txt')
+        log_file = mktemp(suffix='-restedit-log.txt')
         log_filehandler = logging.FileHandler(log_file)
         log_formatter = logging.Formatter(
                                 '%(asctime)s %(levelname)s %(message)s')
@@ -140,20 +141,20 @@ class ExternalEditor:
         logger.addHandler(log_filehandler)
         logger.setLevel(logging.DEBUG)
 
-        logger.info("ZopeEdit version %s maintained by atReal." % __version__ )
+        logger.info('Restedit version %s maintained by Itaapy.' % __version__ )
         logger.info('Opening %r.', input_filename)
 
         try:
             # Read the configuration file
             if win32:
                 # Check the home dir first and then the program dir
-                config_path = os.path.expanduser('~\\ZopeEdit.ini')
+                config_path = os.path.expanduser('~\\Restedit.ini')
 
                 # sys.path[0] might be library.zip!!!!
                 app_dir = sys.path[0]
                 if app_dir.lower().endswith('library.zip'):
                     app_dir = os.path.dirname(app_dir)
-                global_config = os.path.join(app_dir or '', 'ZopeEdit.ini')
+                global_config = os.path.join(app_dir or '', 'Restedit.ini')
 
                 if not os.path.exists(config_path):
                     logger.info('Config file %r does not exist. '
@@ -167,11 +168,11 @@ class ExternalEditor:
                     logger.info('Using user configuration file: %r.',
                                  config_path)
             else:
-                config_path = os.path.expanduser('~/.zope-external-edit')
+                config_path = os.path.expanduser('~/.resteditrc')
             self.config = Configuration(config_path)
 
             # If there is no filename, the user edits the config file of
-            # zopeEdit
+            # restedit
             if input_filename is None:
                 self.editConfig()
                 sys.exit(0)
@@ -312,7 +313,7 @@ class ExternalEditor:
 
 
     def __del__(self):
-        logger.info("ZopeEdit ends at: %s" % time.asctime(time.localtime()) )
+        logger.info("Restedit ends at: %s" % time.asctime(time.localtime()) )
 
 
     def cleanContentFile(self):
@@ -527,16 +528,16 @@ class ExternalEditor:
                        'to editor process.\n'
                        '(%s)' % command, exit=False)
 
-        # Check is a file has been modified but not saved back to zope
+        # Check if a file has been modified but not saved back to Ikaaro
         if self.dirty_file:
             msg = "%s " %(self.title)
-            msg += "Some modifications are NOT SAVED to Zope.\n "
+            msg += "Some modifications are NOT SAVED to the server.\n "
             if self.last_saved_mtime != self.initial_mtime:
                 msg += ("\n This file has been saved at : %s \n" %
                         time.ctime(self.last_saved_mtime))
             else:
-                msg += "\n This file has never been saved\n \n "
-            msg += "You may have network issues\n \n "
+                msg += "\n This file has never been saved\n\n "
+            msg += "You may have network issues\n\n "
             msg += "Reopen local copy?\n "
             msg += "\n "
             msg += "If you choose 'No',\n "
@@ -757,7 +758,7 @@ class ExternalEditor:
                     proxy_authorization = ('Proxy-authorization: Basic ' +
                                            user_pass + '\r\n')
                 proxy_connect = 'CONNECT %s:%s HTTP/1.0\r\n' % (host, port)
-                user_agent = ('User-Agent: Zope External Editor %s\r\n' %
+                user_agent = ('User-Agent: Ikaaro External Editor %s\r\n' %
                               __version__)
                 proxy_pieces = (proxy_connect + proxy_authorization +
                                 user_agent + '\r\n')
@@ -776,7 +777,7 @@ class ExternalEditor:
                 h = HTTPConnection(proxy_host,proxy_port)
                 h.sock = sock
                 h.putrequest(method, url)
-                h.putheader('User-Agent', 'Zope External Editor/%s' %
+                h.putheader('User-Agent', 'Ikaaro External Editor/%s' %
                                           __version__)
                 #h.putheader('Connection', 'close')
                 for header, value in headers.items():
@@ -807,7 +808,8 @@ class ExternalEditor:
 
             #h.putrequest(method, self.path)
             h.putrequest(method, url)
-            h.putheader('User-Agent', 'Zope External Editor/%s' % __version__)
+            h.putheader('User-Agent', 'Ikaaro External Editor/%s' %
+                                      __version__)
             #h.putheader('Connection', 'close')
             for header, value in headers.items():
                 h.putheader(header, value)
@@ -861,12 +863,12 @@ class ExternalEditor:
         # Read the configuration file
         if win32:
             # Check the home dir first and then the program dir
-            user_config = os.path.expanduser('~\\ZopeEdit.ini')
+            user_config = os.path.expanduser('~\\Restedit.ini')
             # sys.path[0] might be library.zip!!!!
             app_dir = sys.path[0]
             if app_dir.lower().endswith('library.zip'):
                 app_dir = os.path.dirname(app_dir)
-            global_config = os.path.join(app_dir or '', 'ZopeEdit.ini')
+            global_config = os.path.join(app_dir or '', 'Restedit.ini')
 
             create_config_file = False
             if not os.path.exists(user_config):
@@ -891,7 +893,7 @@ class ExternalEditor:
                 input_config_file.close()
                 output_config_file.close()
         else:
-            user_config = os.path.expanduser('~/.zope-external-edit')
+            user_config = os.path.expanduser('~/.resteditrc')
             if askYesNo("Do you want to replace your configuration file "
                         "with the default one ?"):
                 logger.info("Replace the configuration file with the default "
@@ -1183,10 +1185,10 @@ def fatalError(message, exit=True):
     msg = 'FATAL ERROR: %s' % message
     errorDialog(msg)
     # Write out debug info to a temp file
-    # traceback_filename = mktemp(suffix='-zopeedit-traceback.txt')
+    # traceback_filename = mktemp(suffix='-restedit-traceback.txt')
     if log_file is None:
-        log_file = mktemp(suffix='-zopeedit-traceback.txt')
-    debug_f = open( log_file, 'a+b')
+        log_file = mktemp(suffix='-restedit-traceback.txt')
+    debug_f = open(log_file, 'a+b')
     try:
         # Copy the log_file before it goes away on a fatalError.
         #if log_file is not None:
@@ -1203,7 +1205,7 @@ def fatalError(message, exit=True):
 
 
 default_configuration = """
-# Zope External Editor helper application configuration
+# Ikaaro External Editor helper application configuration
 
 [general]
 # General configuration options
@@ -1211,7 +1213,7 @@ version = %s
 
 # Temporary file cleanup. Set to false for debugging or
 # to waste disk space. Note: setting this to false is a
-# security risk to the zope server
+# security risk to the Ikaaro server
 # cleanup_files = 1
 # keep_log = 1
 
@@ -1242,7 +1244,7 @@ config_editor = gvim -f
 editor = gvim -f
 
 # Automatic save interval, in seconds. Set to zero for
-# no auto save (save to Zope only on exit).
+# no auto save (save to Ikaaro only on exit).
 # save_interval = 5
 
 # log level : default is 'info'.
