@@ -2,6 +2,7 @@
 ##############################################################################
 #
 # Copyright (c) 2001, 2002 Zope Corporation and Contributors.
+# Copyright (c) 2010 David Versmisse <david.versmisse@itaapy.com>
 # All Rights Reserved.
 #
 # This software is subject to the provisions of the Zope Public License,
