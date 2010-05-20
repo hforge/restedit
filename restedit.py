@@ -30,19 +30,19 @@ import os, re, popen2
 import time
 import traceback
 import logging
-import hashlib
 import urllib
 import shutil
 import glob
-import socket
-import base64
+
+from base64 import decodestring as decode_base64
 from datetime import datetime
 from time import sleep, mktime
 from ConfigParser import ConfigParser
-from httplib import HTTPConnection, HTTPSConnection,FakeSocket
 from optparse import OptionParser
 from tempfile import mktemp
-from urllib2 import parse_http_list, parse_keqv_list
+from urllib2 import parse_http_list, parse_keqv_list, Request, build_opener
+from urllib2 import HTTPBasicAuthHandler, HTTPDigestAuthHandler
+from urllib2 import HTTPPasswordMgrWithDefaultRealm, HTTPError
 from urlparse import urlparse
 from email.utils import parsedate_tz, mktime_tz, formatdate
 
@@ -129,7 +129,7 @@ class ExternalEditor:
     def __init__(self, input_filename=None):
         """If input_filename = None => Edit config"""
 
-        self.identity = None
+        self.opener = None
 
         # Setup logging.
         global log_file
@@ -617,6 +617,74 @@ class ExternalEditor:
                     logger.info("Final loop")
 
 
+    def get_opener(self):
+        # The opener is yet build ?
+        if self.opener is not None:
+            return self.opener
+
+        # Build a new opener
+        opener = build_opener()
+        headers = [ ('User-agent', 'Ikaaro external editor/%s' % __version__) ]
+
+        # An authentication ?
+        auth_header = self.metadata.get('auth')
+        if auth_header is not None:
+            if auth_header.lower().startswith('basic'):
+                cls_handler = HTTPBasicAuthHandler
+                chal = auth_header[6:].strip()
+                # Automatically find the username and the password
+                username, password = decode_base64(chal).split(':', 1)
+            elif auth_header.lower().startswith('digest'):
+                cls_handler = HTTPDigestAuthHandler
+                # Automatically find the username, but we must ask the password
+                # XXX undocumented functions
+                chal = parse_keqv_list(parse_http_list(auth_header[7:]))
+                username = chal['username']
+                password = askPassword(chal['realm'], username)
+            else:
+                raise NotImplemented
+
+            password_mgr = HTTPPasswordMgrWithDefaultRealm()
+            password_mgr.add_password(realm=None,
+                                      uri=self.url,
+                                      user=username,
+                                      passwd=password)
+
+            auth_handler = cls_handler(password_mgr)
+            opener.add_handler(auth_handler)
+
+        # A cookie ?
+        if self.metadata.get('cookie'):
+            headers.append( ('Cookie', self.metadata['cookie']) )
+
+        # All OK
+        opener.addheaders = headers
+        self.opener = opener
+        return opener
+
+
+    def send_body(self, body, headers):
+        """Send a request back to Ikaaro"""
+
+        # Get the opener
+        opener = self.get_opener()
+
+        # Make a new request
+        request = Request(self.url, data=body)
+        # XXX Bad (or not) hack to make a PUT instead of a POST
+        request.get_method = lambda : 'PUT'
+
+        # Add the additional headers
+        for key, value in headers.iteritems():
+            request.add_header(key, value)
+
+        # Try to connect
+        try:
+            return opener.open(request)
+        except HTTPError:
+            return None
+
+
     def put_changes(self):
         """Save changes to the file back to Ikaaro"""
         logger.info("put_changes at: %s" % time.asctime(time.localtime()))
@@ -631,13 +699,13 @@ class ExternalEditor:
                                                      'text/plain'),
                    'If-Unmodified-Since': datetime_to_http_date(
                                                 self.last_modified) }
-        response = self.send_request('PUT', headers, body)
+        response = self.send_body(body, headers)
 
         # Don't keep the body around longer then we need to
         del body
 
         # An error ?
-        if response.status / 100 != 2:
+        if response is not None and response.code / 100 != 2:
             if askRetryAfterError(response, 'Could not transfer the changes\n'
                                             'Error occurred during HTTP put'):
                 return self.put_changes()
@@ -647,214 +715,12 @@ class ExternalEditor:
                 return False
 
         # Get the new Last-Modified
-        last_modified = response.getheader('Last-Modified')
+        last_modified = response.headers.get('Last-Modified')
         self.last_modified = http_date_to_datetime(last_modified)
 
         # All OK
         logger.info("File successfully saved back to the intranet")
         return True
-
-
-    def _get_authorization(self, host, method, selector, cookie, ssl,
-                           old_response):
-        #get the challenge
-        if ssl is True:
-            h = HTTPSConnection(host)
-        else:
-            h = HTTPConnection(host)
-        if cookie is not None:
-            headers = {'Cookie': cookie}
-        else:
-            headers = {}
-        h.request('HEAD', selector, headers=headers)
-        r = h.getresponse()
-        if r.status != 401:
-            return None
-        auth_header = r.getheader('www-authenticate').strip()
-        if auth_header is None or not auth_header.lower().startswith('digest'):
-            return None
-        # XXX undocumented functions
-        chal = parse_keqv_list(parse_http_list(auth_header[7:]))
-
-        # Get the user/password
-        if self.identity is not None:
-            username, password = self.identity
-        else:
-            # XXX undocumented functions
-            username = parse_keqv_list(parse_http_list(old_response[7:])
-                                       )['username']
-            password = askPassword(chal['realm'], username)
-            self.identity = (username, password)
-
-        # Compute the authorization
-        algorithm = chal.get('algorithm', 'MD5')
-        if algorithm == 'MD5':
-            H = lambda x: hashlib.md5(x).hexdigest()
-        elif algorithm == 'SHA':
-            H = lambda x: hashlib.sha1(x).hexdigest()
-        # XXX MD5-sess not implemented
-        KD = lambda s, d: H("%s:%s" % (s, d))
-
-        nonce = chal['nonce']
-        res = ('Digest username="%s", realm="%s", nonce="%s", algorithm="%s", '
-               'uri="%s"' % (username, chal['realm'], nonce, chal['algorithm'],
-                             selector))
-        if 'opaque' in chal:
-            res += ', opaque="%s"' % chal['opaque']
-
-        A1 = '%s:%s:%s' % (username, chal['realm'], password)
-        A2 = '%s:%s' % (method, selector)
-
-        if 'qop' in chal:
-            # XXX auth-int not implemented
-            qop = chal['qop']
-            nc = '00000001'
-            cnonce = '12345678'
-            res += ', qop="%s", nc="%s", cnonce="%s"' % (qop, nc, cnonce)
-
-            response = KD( H(A1), '%s:%s:%s:%s:%s' % (nonce, nc, cnonce, qop,
-                                                      H(A2)))
-        else:
-            response = KD( H(A1), '%s:%s' % (nonce, H(A2)) )
-
-        res += ', response="%s"' % response
-        return res
-
-
-    def send_request(self, method, headers={}, body=''):
-        """Send a request back to Ikaaro"""
-
-        # Get host/url
-        if self.proxy == '':
-            host = self.host
-            url = self.path
-        else:
-            host = self.proxy
-            url = self.url
-        logger.debug("send_request: url = %s" % url)
-        logger.debug("send_request: method = %s" % method)
-
-        try:
-            if self.ssl and self.proxy:
-                # XXX
-                #setup basic authentication
-                proxy_host, proxy_port = self.proxy.split(':')
-                proxy_port = int(proxy_port)
-                taburl = url.split('/')
-                if len(taburl[2].split(':')) == 2:
-                    port = int(taburl[2].split(':')[1])
-                    host = taburl[2].split(':')[0]
-                else:
-                    if taburl[0] == 'https:':
-                        port = 443
-                    else:
-                        port = 80
-                    host = taburl[2]
-
-                proxy_authorization = ''
-                if self.proxy_user and self.proxy_passwd:
-                    user_pass = base64.encodestring(self.proxy_user + ':' +
-                                                    self.proxy_passwd)
-                    proxy_authorization = ('Proxy-authorization: Basic ' +
-                                           user_pass + '\r\n')
-                proxy_connect = 'CONNECT %s:%s HTTP/1.0\r\n' % (host, port)
-                user_agent = ('User-Agent: Ikaaro External Editor %s\r\n' %
-                              __version__)
-                proxy_pieces = (proxy_connect + proxy_authorization +
-                                user_agent + '\r\n')
-                # Now connect, very simple recv and error checking
-                proxy = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-                proxy.connect((proxy_host,proxy_port))
-                proxy.sendall(proxy_pieces)
-                response = proxy.recv(8192)
-                status = response.split()[1]
-                if status != str(200):
-                    raise 'Error status=', str(status)
-                # Trivial setup for ssl socket
-                ssl = socket.ssl(proxy, None, None)
-                sock = FakeSocket(proxy, ssl)
-                # Initalize httplib and replace with your socket
-                h = HTTPConnection(proxy_host,proxy_port)
-                h.sock = sock
-                h.putrequest(method, url)
-                h.putheader('User-Agent', 'Ikaaro External Editor/%s' %
-                                          __version__)
-                #h.putheader('Connection', 'close')
-                for header, value in headers.items():
-                    h.putheader(header, value)
-                h.putheader("Content-Length", str(len(body)))
-                # Authentication
-                auth_header = self.metadata.get('auth','')
-                if auth_header.lower().startswith('basic'):
-                    h.putheader("Authorization", self.metadata['auth'])
-                if auth_header.lower().startswith('digest'):
-                    authorization = self._get_authorization(host, method, url,
-                                                self.metadata.get('cookie'),
-                                                False, auth_header)
-                    if authorization is not None:
-                        h.putheader("Authorization", authorization)
-                # Cookie
-                if self.metadata.get('cookie'):
-                    h.putheader("Cookie", self.metadata['cookie'])
-
-                h.endheaders()
-                h.send(body)
-                return h.getresponse()
-
-            if self.ssl and not self.proxy:
-                h = HTTPSConnection(host)
-            else:
-                h = HTTPConnection(host)
-
-            #h.putrequest(method, self.path)
-            h.putrequest(method, url)
-            h.putheader('User-Agent', 'Ikaaro External Editor/%s' %
-                                      __version__)
-            #h.putheader('Connection', 'close')
-            for header, value in headers.items():
-                h.putheader(header, value)
-            h.putheader("Content-Length", str(len(body)))
-            # Authentication
-            auth_header = self.metadata.get('auth','')
-            if auth_header.lower().startswith('basic'):
-                h.putheader("Authorization", self.metadata['auth'])
-            if auth_header.lower().startswith('digest'):
-                authorization = self._get_authorization(host, method, url,
-                                            self.metadata.get('cookie'),
-                                            self.ssl and not self.proxy,
-                                            auth_header)
-                if authorization is not None:
-                    h.putheader("Authorization", authorization)
-            # Cookie
-            if self.metadata.get('cookie'):
-                h.putheader("Cookie", self.metadata['cookie'])
-
-            h.endheaders()
-            h.send(body)
-            return h.getresponse()
-        except:
-            # On error return a null response with error info
-            class NullResponse:
-                def getheader(self, n, d=None):
-                    return d
-
-                def read(self):
-                    return '(No Response From Server)'
-
-            response = NullResponse()
-            response.reason = sys.exc_info()[1]
-
-            try:
-                response.status, response.reason = response.reason
-            except ValueError:
-                response.status = 0
-
-            if response.reason == 'EOF occurred in violation of protocol':
-                # Ignore this protocol error as a workaround for
-                # broken ssl server implementations
-                response.status = 200
-
-            return response
 
 
     def editConfig(self):
