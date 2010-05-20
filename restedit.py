@@ -183,17 +183,14 @@ class ExternalEditor:
             self.metadata = metadata = read_metadata(input_file)
             logger.debug("metadata: %s" % repr(self.metadata))
 
-            # Parse the incoming url
-            scheme, self.host, self.path = urlparse(metadata['url'])[:3]
+            # Get the url, host and path
+            self.url = metadata['url']
+            _, self.host, self.path = urlparse(metadata['url'])[:3]
 
             # Get last-modified
             last_modified = metadata['last-modified']
             self.last_modified = http_date_to_datetime(last_modified)
             logger.debug('last_modified: %s' % str(self.last_modified))
-
-            # Keep the full url for proxy
-            self.url = metadata['url']
-            self.ssl = scheme == 'https'
 
             # Get all configuration options
             self.options = self.config.getAllOptions(
@@ -206,26 +203,9 @@ class ExternalEditor:
 
             logger.info("all options : %r" % self.options)
 
-            # get proxy from options
-            self.proxy = self.options.get('proxy','')
-            if self.proxy == '':
-                if win32:
-                    pass
-                elif os.environ.has_key("http_proxy"):
-                    self.proxy=os.environ["http_proxy"]
-            if self.proxy.startswith('http://'):
-                self.proxy = self.proxy[7:]
-            if self.proxy.find('/') > -1:
-                self.proxy = self.proxy[:self.proxy.find('/')]
-            logger.debug("Proxy set to : %s" % self.proxy)
-
             # lock file name for editors that create a lock file
             self.lock_file_schemes = self.options.get('lock_file_schemes',
                                                       '').split(';')
-
-            # proxy user and pass
-            self.proxy_user = self.options.get('proxy_user', '')
-            self.proxy_pass = self.options.get('proxy_pass', '')
 
             # Should we keep the log file?
             self.keep_log = int(self.options.get('keep_log', 1))
@@ -288,15 +268,6 @@ class ExternalEditor:
                 except OSError:
                     logger.exception('Failed to clean up %r.', input_filename)
                     pass # Sometimes we aren't allowed to delete it
-
-            if self.ssl:
-                # See if ssl is available
-                try:
-                    from socket import ssl
-                except ImportError:
-                    fatalError('SSL support is not available on this system. '
-                               'Make sure openssl is installed '
-                               'and reinstall Python.')
         except:
             # for security, always delete the input file even if
             # a fatal error occurs, unless explicitly stated otherwise
@@ -1082,13 +1053,6 @@ version = %s
 # security risk to the Ikaaro server
 # cleanup_files = 1
 # keep_log = 1
-
-# Proxy : if nor set, it may be taken from http_proxy env
-#proxy=http://www.myproxy.com:8080
-
-# Proxy user and password ( optional )
-#proxy_user='username'
-#proxy_pass='password'
 
 # Max isAlive counter
 # This is used in order to wait the editor to effectively lock the file
