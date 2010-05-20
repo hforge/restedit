@@ -21,6 +21,7 @@ win32 = sys.platform == 'win32'
 if win32:
     # import pywin32 stuff first so it never looks into system32
     import pythoncom, pywintypes
+    from win32process import CreateProcess, GetExitCodeProcess, STARTUPINFO
 
     # prevent warnings from being turned into errors by py2exe
     import warnings
