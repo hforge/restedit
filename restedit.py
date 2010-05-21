@@ -92,9 +92,9 @@ class Configuration:
         return getattr(self.config, name)
 
 
-    def getAllOptions(self, meta_type, content_type, title, host_domain):
+    def getAllOptions(self, content_type, title, host_domain):
         """Return a dict of all applicable options for the
-           given meta_type, content_type and host_domain
+           given content_type and host_domain
         """
         opt = {}
         sep = content_type.find('/')
@@ -110,7 +110,6 @@ class Configuration:
 
         sections = ['general']
         sections.extend(domains)
-        sections.append('meta-type:%s' % meta_type)
         sections.append('general-type:%s' % general_type)
         sections.append('content-type:%s' % content_type)
         sections.append('title:%s' % title)
@@ -196,7 +195,6 @@ class ExternalEditor:
 
             # Get all configuration options
             self.options = self.config.getAllOptions(
-                                            metadata['meta_type'],
                                             metadata.get('content_type',''),
                                             metadata.get('title',''),
                                             self.host)
@@ -1089,24 +1087,8 @@ editor = gvim -f
 # If your client charset is not iso-8859-1
 # client_charset = iso-8859-1
 
-# Specific settings by content-type or meta-type. Specific
-# settings override general options above. Content-type settings
-# override meta-type settings for the same option.
-
-[meta-type:DTML Document]
-extension=.dtml
-
-[meta-type:DTML Method]
-extension=.dtml
-
-[meta-type:Script (Python)]
-extension=.py
-
-[meta-type:Page Template]
-extension=.pt
-
-[meta-type:Z SQL Method]
-extension=.sql
+# Specific settings by content-type. Specific
+# settings override general options above.
 
 [content-type:text/plain]
 extension=.txt
