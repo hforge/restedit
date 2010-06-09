@@ -499,7 +499,7 @@ class ExternalEditor:
                        'to editor process.\n'
                        '(%s)' % command, exit=False)
 
-        # Check if a file has been modified but not saved back to Ikaaro
+        # Check if a file has been modified but not saved back to the CMS
         if self.dirty_file:
             msg = "%s " %(self.title)
             msg += "Some modifications are NOT SAVED to the server.\n "
@@ -595,7 +595,7 @@ class ExternalEditor:
 
         # Build a new opener
         opener = build_opener()
-        headers = [ ('User-agent', 'Ikaaro external editor/%s' % __version__) ]
+        headers = [ ('User-agent', 'restedit/%s' % __version__) ]
 
         # An authentication ?
         auth_header = self.metadata.get('auth')
@@ -635,7 +635,7 @@ class ExternalEditor:
 
 
     def send_body(self, body, headers):
-        """Send a request back to Ikaaro"""
+        """Send a request back to the CMS"""
 
         # Get the opener
         opener = self.get_opener()
@@ -657,7 +657,7 @@ class ExternalEditor:
 
 
     def put_changes(self):
-        """Save changes to the file back to Ikaaro"""
+        """Save changes to the file back to the CMS"""
         logger.info("put_changes at: %s" % time.asctime(time.localtime()))
 
         # Read the new body
@@ -1042,7 +1042,7 @@ def fatalError(message, exit=True):
 
 
 default_configuration = """
-# Ikaaro External Editor helper application configuration
+# The RESTful editor (restedit) configuration
 
 [general]
 # General configuration options
@@ -1050,7 +1050,7 @@ version = %s
 
 # Temporary file cleanup. Set to false for debugging or
 # to waste disk space. Note: setting this to false is a
-# security risk to the Ikaaro server
+# security risk to the CMS server
 # cleanup_files = 1
 # keep_log = 1
 
@@ -1074,7 +1074,7 @@ config_editor = gvim -f
 editor = gvim -f
 
 # Automatic save interval, in seconds. Set to zero for
-# no auto save (save to Ikaaro only on exit).
+# no auto save (save to the CMS only on exit).
 # save_interval = 5
 
 # log level : default is 'info'.
