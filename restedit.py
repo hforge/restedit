@@ -51,7 +51,7 @@ from email.utils import parsedate_tz, mktime_tz, formatdate
 
 
 # Constantes / global variables
-__version__ = '0.10.2'
+__version__ = '1.0.0'
 TK_TITLE = "Restedit"
 LOG_LEVELS = {'debug': logging.DEBUG,
               'info': logging.INFO,

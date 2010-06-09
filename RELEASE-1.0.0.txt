@@ -1,0 +1,45 @@
+This is the RESTful editor, an utility to edit content in a CMS with
+your desktop applications (e.g. Gimp, OpenOffice, vim, etc.)
+
+An optimistic restful [1] mechanism based in timestamps is used to talk
+with the server.  This mechanism uses HTTP/1.1, in particular the PUT
+method and the If-Unmodified-Since header.  At least the Ikaaro [1] CMS
+is known to support this mechanism and to work with restedit.
+
+This software is a fork of zopeedit [3], the main difference is the
+mechanism used to talk with the server (restful or not restful).
+
+[1] http://en.wikipedia.org/wiki/Representational_State_Transfer
+[2] http://www.hforge.org/ikaaro
+[3] http://plone.org/products/zope-externaleditor-client
+
+
+What's new
+----------
+
+This is the first release of restedit.  The main difference with
+zopeedit is the mechanism used to talk with the server.  Other
+differences include:
+
+- support for digest authentication
+
+- use of tkinter in all platforms
+
+- updated code base
+
+
+Resources
+---------
+
+Download
+http://download.hforge.org/restedit/1.0/restedit-1.0.0.tar.gz
+
+Home
+http://www.hforge.org/restedit/
+
+Mailing list
+http://www.hforge.org/community/
+http://archives.hforge.org/index.cgi?list=itools
+
+Bug Tracker
+http://bugs.hforge.org/
