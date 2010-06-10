@@ -3,7 +3,7 @@ your desktop applications (e.g. Gimp, OpenOffice, vim, etc.)
 
 An optimistic restful [1] mechanism based in timestamps is used to talk
 with the server.  This mechanism uses HTTP/1.1, in particular the PUT
-method and the If-Unmodified-Since header.  At least the Ikaaro [1] CMS
+method and the If-Unmodified-Since header.  At least the Ikaaro [2] CMS
 is known to support this mechanism and to work with restedit.
 
 This software is a fork of zopeedit [3], the main difference is the
