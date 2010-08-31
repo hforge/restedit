@@ -1,0 +1,9 @@
+How to generate the setup.exe file ?
+
+Make the dist/
+python setup.py py2exe
+
+Make the setup.exe:
+* Install "Inno Setup Compiler" (http://www.innosetup.com).
+* Click on the innno script and choose build.
+
