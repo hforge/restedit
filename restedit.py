@@ -1106,35 +1106,35 @@ editor=gimp -n
 
 [content-type:application/vnd.oasis.opendocument.text]
 extension=.odt
-editor=ooffice
+editor=soffice
 
 [content-type:application/vnd.sun.xml.writer]
 extension=.sxw
-editor=ooffice
+editor=soffice
 
 [content-type:application/vnd.sun.xml.calc]
 extension=.sxc
-editor=ooffice
+editor=soffice
 
 [content-type:application/vnd.oasis.opendocument.spreadsheet]
 extension=.ods
-editor=ooffice
+editor=soffice
 
 [content-type:application/vnd.oasis.opendocument.presentation]
 extension=.odp
-editor=ooffice
+editor=soffice
 
 [content-type:application/msword]
 extension=.doc
-editor=ooffice
+editor=soffice
 
 [content-type:application/vnd.ms-excel]
 extension=.xls
-editor=ooffice
+editor=soffice
 
 [content-type:application/vnd.ms-powerpoint]
 extension=.ppt
-editor=ooffice
+editor=soffice
 
 """ % __version__
 
