@@ -577,13 +577,6 @@ class ExternalEditor:
                     # return false, but the editor may have actually saved the
                     # file to disk while the call blocked.  We want to catch
                     # any changes that happened during a blocking isAlive call.
-                    msg = "%s " %(self.title)
-                    if self.last_saved_mtime != self.initial_mtime:
-                        msg += ("\n Saved at : %s" %
-                                time.ctime(self.last_saved_mtime))
-                    msg += "\n \n Edition finished (stop monitoring) ?\n "
-                    if not askYesNo(msg) :
-                        continue
                     final_loop = 1
                     logger.info("Final loop")
 
