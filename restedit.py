@@ -489,7 +489,7 @@ class ExternalEditor:
                                         self.lock_file_schemes)
             logger.info("Editor launched successfully")
 
-        launch_success = self.editor.isAlive()
+        launch_success = self.editor.is_alive()
 
         self.monitorFile()
 
@@ -555,7 +555,7 @@ class ExternalEditor:
                     self.last_saved_mtime = mtime
                     self.dirty_file = False
 
-            if not self.editor.isAlive():
+            if not self.editor.is_alive():
 
                 if final_loop:
                     logger.info("Final loop done; break")
@@ -571,12 +571,13 @@ class ExternalEditor:
                             self.last_saved_mtime = mtime
                             self.dirty_file = False
                     # Go through the loop one final time for good measure.
-                    # Our editor's isAlive method may itself *block* during a
+                    # Our editor's is_alive method may itself *block* during a
                     # save operation (seen in COM calls, which seem to
                     # respond asynchronously until they don't) and subsequently
                     # return false, but the editor may have actually saved the
                     # file to disk while the call blocked.  We want to catch
-                    # any changes that happened during a blocking isAlive call.
+                    # any changes that happened during a blocking is_alive
+                    # call.
                     final_loop = 1
                     logger.info("Final loop")
 
@@ -759,35 +760,36 @@ class EditorProcess:
     def __init__(self, command, contentfile, max_is_alive_counter,
                  lock_file_schemes):
         """Launch editor process"""
-        # Prepare the command arguments, we use this regex to
-        # split on whitespace and properly handle quoting
+
         self.command = command
         self.contentfile = contentfile
-        self.max_is_alive_counter = max_is_alive_counter
         self.lock_file_schemes = lock_file_schemes
-        self.arg_re = r"""\s*([^'"]\S+)\s+|\s*"([^"]+)"\s*|\s*'([^']+)'\s*"""
-        self.is_alive_by_file = None; # do we check file or pid ?
-        self.is_alive_counter = 0 #number of isAlive Cycles
-        if win32:
-            self.methods = { 1: self.isFileLockedByLockFile,
-                             2: self.isFileOpenWin32,
-                             3: self.isPidUpWin32 }
-        else:
-            self.methods = { 1: self.isFileLockedByLockFile,
-                             2: self.isFileOpen,
-                             3: self.isPidUp }
-        self.nb_methods = 3
+
+        # is_alive variables
+        self.is_alive_counter = 0
+        self.max_is_alive_counter = max_is_alive_counter
         self.lock_detected = False
-        self.selected_method = False
         self.start_sequence = True
 
+        # Methods to use with is_alive
+        self.selected_method = -1
         if win32:
-            self.startEditorWin32()
+            self.methods = [ self.test_lock_file,
+                             self.test_file_open_win32,
+                             self.test_PID_win32 ]
         else:
-            self.startEditor()
+            self.methods = [ self.test_lock_file,
+                             self.test_file_open_unix,
+                             self.test_PID_unix ]
+
+        # Go
+        if win32:
+            self.start_editor_win32()
+        else:
+            self.start_editor_unix()
 
 
-    def startEditorWin32(self):
+    def start_editor_win32(self):
         try:
             logger.debug('CreateProcess: %r', self.command)
             self.handle, nil, nil, nil = CreateProcess(None, self.command,
@@ -798,8 +800,11 @@ class EditorProcess:
                        '(%s):\n%s' % (self.command, e[2]))
 
 
-    def startEditor(self):
-        args = re.split(self.arg_re, self.command.strip())
+    def start_editor_unix(self):
+        # Prepare the command arguments, we use this regex to
+        # split on whitespace and properly handle quoting
+        arg_re = r"""\s*([^'"]\S+)\s+|\s*"([^"]+)"\s*|\s*'([^']+)'\s*"""
+        args = re.split(arg_re, self.command.strip())
         args = filter(None, args) # Remove empty elements
         self.pid = os.spawnvp(os.P_NOWAIT, args[0], args)
 
@@ -809,7 +814,8 @@ class EditorProcess:
         sleep(timeout)
 
 
-    def isFileOpenWin32(self):
+    def test_file_open_win32(self):
+        """Test the file is locked on the FS"""
         try:
             fileOpen = file(self.contentfile, 'a')
         except IOError, e:
@@ -824,7 +830,8 @@ class EditorProcess:
         return False
 
 
-    def isPidUpWin32(self):
+    def test_PID_win32(self):
+        """Test PID"""
         if GetExitCodeProcess(self.handle) == 259:
             logger.info("Pid is up : Editor is still running")
             return True
@@ -832,17 +839,16 @@ class EditorProcess:
         return False
 
 
-    def isFileOpen(self):
-        """Test if File is locked (filesystem)"""
+    def test_file_open_unix(self):
+        """Test if the file is locked on the FS"""
         logger.debug("test if the file edited is locked by filesystem")
         isFileOpenNum = popen2.Popen4('/bin/fuser %s' %
                                       self.command.split(' ')[-1]).wait()
         return isFileOpenNum == 0
 
 
-    def isPidUp(self):
+    def test_PID_unix(self):
         """Test PID"""
-        logger.debug("test if PID is up")
         try:
             exit_pid, exit_status = os.waitpid(self.pid, os.WNOHANG)
         except OSError:
@@ -850,16 +856,18 @@ class EditorProcess:
         return exit_pid != self.pid
 
 
-    def isFileLockedByLockFile(self):
-        """Test Lock File (extra file)"""
+    def test_lock_file(self):
+        """Test Lock File"""
+
         if win32:
             file_separator="\\"
         else:
             file_separator="/"
+
         original_filepath = self.contentfile.split(file_separator)
         logger.debug("log file schemes : %s" % self.lock_file_schemes)
         for i in self.lock_file_schemes:
-            filepath=original_filepath[:]
+            filepath = original_filepath[:]
             if i == '':
                 continue
             filepath[-1] = i % filepath[-1]
@@ -868,35 +876,34 @@ class EditorProcess:
             if glob.glob(filename):
                 self.lock_file_schemes = [i]
                 return True
+
         return False
 
 
-    def isAlive(self):
-        """Returns true if the editor process is still alive
-           is_alive_by_file stores whether we check file or pid
-           file check has priority"""
+    def is_alive(self):
+        """Returns true if the file is yet edited"""
 
         if self.start_sequence:
-            logger.info("isAlive : still starting. Counter : %s" %
+            logger.info("is_alive : still starting. Counter : %s" %
                         self.is_alive_counter)
             if self.is_alive_counter < self.max_is_alive_counter :
                 self.is_alive_counter += 1
             else:
                 self.start_sequence = False
-        for i in range(1,self.nb_methods+1):
-            if self.methods[i]():
-                logger.debug("isAlive: True( %s : %s)"%
-                             (i, self.methods[i].__doc__))
+
+        for i, method in enumerate(self.methods):
+            if method():
+                logger.debug("is_alive: True ( %s : %s)" % (i, method.__doc__))
                 if i != self.selected_method:
-                    logger.info("DETECTION METHOD CHANGE : Level %s - %s" %
-                                (i, self.methods[i].__doc__))
+                    logger.info("DETECTION METHOD CHANGE: %d - %s" %
+                                (i, method.__doc__))
                 self.selected_method = i
-                self.nb_methods = i
                 self.lock_detected = True
                 return True
-        logger.info("isAlive : no edition detected.")
+
+        logger.info("is_alive: no edition detected.")
         if self.start_sequence and not self.lock_detected:
-            logger.debug("isAlive : still in the startup process : continue.")
+            logger.debug("is_alive: still in the startup process : continue.")
             return True
         return False
 
@@ -939,7 +946,7 @@ def has_tk():
     """Sets up a suitable tk root window if one has not
        already been setup. Returns true if tk is happy,
        false if tk throws an error (like its not available)"""
-    # create a hidden root window to make Tkinter happy
+    # Create a hidden root window to make Tkinter happy
     if not locals().has_key('tk_root'):
         try:
             global tk_root
@@ -1047,17 +1054,20 @@ version = %s
 # cleanup_files = 1
 # keep_log = 1
 
-# Max isAlive counter
+# Max is_alive counter
 # This is used in order to wait the editor to effectively lock the file
 # This is the number of 'probing' cycles
 # default value is 5 cycles of save_interval
-# max_isalive_counter = 5
+
+# Automatic save interval, in seconds. Set to zero for
+# no auto save (save to the CMS only on exit).
+# save_interval = 5 max_isalive_counter = 5
 
 # Lock File Scheme
 # These are schemes that are used in order to detect "lock" files
 # %%s is the edited file's name (add a ';' between each scheme):
 # lock_file_schemes=.~lock.%%s#;~%%s.lock
-lock_file_schemes=.~lock.%%s#
+lock_file_schemes=.~lock.%%s#;.%%s.swp
 
 # Uncomment and specify an editor value to override the editor
 # specified in the environment
@@ -1065,10 +1075,6 @@ config_editor = gvim -f
 
 # Default editor
 editor = gvim -f
-
-# Automatic save interval, in seconds. Set to zero for
-# no auto save (save to the CMS only on exit).
-# save_interval = 5
 
 # log level : default is 'info'.
 # It can be set to debug, info, warning, error or critical.
