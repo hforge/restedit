@@ -696,7 +696,8 @@ class ExternalEditor:
                 config_file.close()
 
         # Launch default editor with the user configuration file
-        default_editor = Configuration().config.get('general','config_editor','')
+        default_editor = Configuration().config.get('general','config_editor',
+                                                    '')
         if not default_editor:
             logger.critical("No default editor. Configuration edition failed.")
             sys.exit(0)
