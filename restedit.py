@@ -41,6 +41,8 @@ from datetime import datetime
 from time import sleep, mktime
 from ConfigParser import ConfigParser
 from optparse import OptionParser
+from os import tempnam, remove, chmod, system
+from os.path import exists, expanduser, getmtime
 from tempfile import mktemp
 from urllib2 import parse_http_list, parse_keqv_list, Request, build_opener
 from urllib2 import HTTPBasicAuthHandler, HTTPDigestAuthHandler
@@ -65,15 +67,23 @@ log_file = None
 
 class Configuration:
 
-    def __init__(self, path):
-        # Create/read config file on instantiation
+    def __init__(self):
+    	if win32:
+            path = expanduser('~\\Restedit.ini')
+        else:
+            path = expanduser('~/.resteditrc')
         self.path = path
-        if not os.path.exists(path):
+
+	# No file, we create a new one
+	if not exists(path):
             f = open(path, 'w')
-            f.write(default_configuration)
+            f.write(get_default_configuration())
             f.close()
+
+	# And read it
         self.config = ConfigParser()
         self.config.readfp(open(path))
+
         logger.info("init at: %s" % time.asctime(time.localtime()) )
 
 
@@ -132,7 +142,7 @@ class ExternalEditor:
 
         self.opener = None
 
-        # Setup logging.
+        # Setup logging
         global log_file
         log_file = mktemp(suffix='-restedit-log.txt')
         log_filehandler = logging.FileHandler(log_file)
@@ -146,37 +156,14 @@ class ExternalEditor:
         logger.info('Opening %r.', input_filename)
 
         try:
-            # Read the configuration file
-            if win32:
-                # Check the home dir first and then the program dir
-                config_path = os.path.expanduser('~\\Restedit.ini')
-
-                # sys.path[0] might be library.zip!!!!
-                app_dir = sys.path[0]
-                if app_dir.lower().endswith('library.zip'):
-                    app_dir = os.path.dirname(app_dir)
-                global_config = os.path.join(app_dir or '', 'Restedit.ini')
-
-                if not os.path.exists(config_path):
-                    logger.info('Config file %r does not exist. '
-                                 'Using global configuration file: %r.',
-                                 config_path, global_config)
-
-                    # Don't check for the existence of the global
-                    # config file. It will be created anyway.
-                    config_path = global_config
-                else:
-                    logger.info('Using user configuration file: %r.',
-                                 config_path)
-            else:
-                config_path = os.path.expanduser('~/.resteditrc')
-            self.config = Configuration(config_path)
-
             # If there is no filename, the user edits the config file of
             # restedit
             if input_filename is None:
-                self.editConfig()
+                self.edit_config()
                 sys.exit(0)
+
+            # Open the configuration file
+            self.config = Configuration()
 
             # Open the input file and read the metadata headers
             input_file = open(input_filename, 'rb')
@@ -243,10 +230,10 @@ class ExternalEditor:
                 content_file = content_file + extension
             if self.options.has_key('temp_dir'):
                 while 1:
-                    temp = os.path.expanduser(self.options['temp_dir'])
-                    temp = os.tempnam(temp)
+                    temp = expanduser(self.options['temp_dir'])
+                    temp = tempnam(temp)
                     content_file = '%s%s' % (temp, content_file)
-                    if not os.path.exists(content_file):
+                    if not exists(content_file):
                         break
             else:
                 content_file = mktemp(content_file,'rw')
@@ -263,11 +250,12 @@ class ExternalEditor:
             if self.clean_up:
                 try:
                     logger.debug('Cleaning up %r.', input_filename)
-                    os.chmod(input_filename, 0777)
-                    os.remove(input_filename)
+                    chmod(input_filename, 0777)
+                    remove(input_filename)
                 except OSError:
                     logger.exception('Failed to clean up %r.', input_filename)
                     pass # Sometimes we aren't allowed to delete it
+
         except:
             # for security, always delete the input file even if
             # a fatal error occurs, unless explicitly stated otherwise
@@ -276,7 +264,7 @@ class ExternalEditor:
                 try:
                     exc, exc_data = sys.exc_info()[:2]
                     if input_filename is not None:
-                        os.remove(input_filename)
+                        remove(input_filename)
                 except OSError:
                     # Sometimes we aren't allowed to delete it
                     raise exc, exc_data
@@ -291,7 +279,7 @@ class ExternalEditor:
         if self.clean_up and hasattr(self, 'content_file'):
             # for security we always delete the files by default
             try:
-                os.remove(self.content_file)
+                remove(self.content_file)
                 logger.info("Content File cleaned up %r at %s" %
                             (self.content_file,
                              time.asctime(time.localtime())))
@@ -438,7 +426,7 @@ class ExternalEditor:
     def launch(self):
         """Launch external editor"""
 
-        self.last_mtime = os.path.getmtime(self.content_file)
+        self.last_mtime = getmtime(self.content_file)
         self.initial_mtime = self.last_mtime
         self.last_saved_mtime = self.last_mtime
         self.dirty_file = False
@@ -542,7 +530,7 @@ class ExternalEditor:
         while True:
             if not final_loop:
                 self.editor.wait(self.save_interval)
-            mtime = os.path.getmtime(self.content_file)
+            mtime = getmtime(self.content_file)
 
             if mtime != self.last_mtime:
                 logger.debug("File is dirty : changes detected !")
@@ -688,59 +676,33 @@ class ExternalEditor:
         return True
 
 
-    def editConfig(self):
+    def edit_config(self):
         logger.info('Edit local configuration')
 
-        # Read the configuration file
+	# The good path, ...
         if win32:
-            # Check the home dir first and then the program dir
-            user_config = os.path.expanduser('~\\Restedit.ini')
-            # sys.path[0] might be library.zip!!!!
-            app_dir = sys.path[0]
-            if app_dir.lower().endswith('library.zip'):
-                app_dir = os.path.dirname(app_dir)
-            global_config = os.path.join(app_dir or '', 'Restedit.ini')
-
-            create_config_file = False
-            if not os.path.exists(user_config):
-                logger.info('Local configuration file %r does not exist. '
-                             'Global configuration file is : %r.',
-                             user_config, global_config)
-                if not askYesNo("There is no user configuration file.\n"
-                                "Create it ?"):
-                    sys.exit(0)
-                create_config_file = True
-            else:
-                if askYesNo("Do you want to replace your configuration file "
-                            "with the default one ?"):
-                    create_config_file = True
-                    logger.info("Replace the configuration file with the "
-                                "default one.")
-            if create_config_file:
-                input_config_file = open(global_config, 'r')
-                output_config_file = open(user_config, 'w')
-                for l in input_config_file.readlines():
-                    output_config_file.write( l )
-                input_config_file.close()
-                output_config_file.close()
+            config_path = expanduser('~\\Restedit.ini')
         else:
-            user_config = os.path.expanduser('~/.resteditrc')
+            config_path = expanduser('~/.resteditrc')
+
+	# Yet a file ?
+	if exists(config_path):
             if askYesNo("Do you want to replace your configuration file "
                         "with the default one ?"):
                 logger.info("Replace the configuration file with the default "
                             "one.")
-                output_config = open(user_config, 'w')
-                output_config.write(default_configuration)
-                output_config.close()
+                config_file = open(config_path, 'w')
+                config_file.write(get_default_configuration())
+                config_file.close()
 
-        # launch default editor with the user configuration file
-        default_editor = self.config.config.get('general','config_editor','')
+        # Launch default editor with the user configuration file
+        default_editor = Configuration().config.get('general','config_editor','')
         if not default_editor:
             logger.critical("No default editor. Configuration edition failed.")
             sys.exit(0)
         logger.info("Edit configuration file %s with editor %s" %
-                    (user_config, default_editor))
-        os.system("%s %s" % (default_editor, user_config))
+                    (config_path, default_editor))
+        os.system("%s %s" % (default_editor, config_path))
 
 
 
@@ -1041,12 +1003,11 @@ def fatalError(message, exit=True):
 
 
 
-default_configuration = """
-# The RESTful editor (restedit) configuration
+default_configuration = """# The RESTful editor (restedit) configuration
 
 [general]
 # General configuration options
-version = %s
+version = {version}
 
 # Temporary file cleanup. Set to false for debugging or
 # to waste disk space. Note: setting this to false is a
@@ -1071,10 +1032,10 @@ lock_file_schemes=.~lock.%%s#;.%%s.swp
 
 # Uncomment and specify an editor value to override the editor
 # specified in the environment
-config_editor = gvim -f
+config_editor = {default_editor}
 
 # Default editor
-editor = gvim -f
+editor = {default_editor}
 
 # log level : default is 'info'.
 # It can be set to debug, info, warning, error or critical.
@@ -1141,8 +1102,15 @@ editor=soffice
 [content-type:application/vnd.ms-powerpoint]
 extension=.ppt
 editor=soffice
+"""
+def get_default_configuration():
+    if win32:
+        default_editor = 'notepad'
+    else:
+        default_editor = 'gvim -f'
 
-""" % __version__
+    return default_configuration.format(version=__version__,
+		                        default_editor=default_editor)
 
 
 
@@ -1165,7 +1133,7 @@ if __name__ == '__main__':
         parser.print_help()
         sys.exit(1)
 
-    # Go go go
+    # Go
     try:
         ExternalEditor(input_filename).launch()
     except (KeyboardInterrupt, SystemExit):
