@@ -41,7 +41,7 @@ from datetime import datetime
 from time import sleep, mktime
 from ConfigParser import ConfigParser
 from optparse import OptionParser
-from os import tempnam, remove, chmod, system
+from os import tempnam, remove, chmod, system, startfile
 from os.path import exists, expanduser, getmtime
 from tempfile import mktemp
 from urllib2 import parse_http_list, parse_keqv_list, Request, build_opener
@@ -695,15 +695,21 @@ class ExternalEditor:
                 config_file.write(get_default_configuration())
                 config_file.close()
 
-        # Launch default editor with the user configuration file
-        default_editor = Configuration().config.get('general','config_editor',
-                                                    '')
-        if not default_editor:
-            logger.critical("No default editor. Configuration edition failed.")
-            sys.exit(0)
-        logger.info("Edit configuration file %s with editor %s" %
-                    (config_path, default_editor))
-        os.system("%s %s" % (default_editor, config_path))
+	# Launch an editor
+	if win32:
+	    startfile(config_path)
+	else:
+            # Launch default editor with the user configuration file
+            default_editor = Configuration().config.get('general',
+			    				'config_editor',
+                                                        '')
+            if not default_editor:
+                logger.critical(
+			"No default editor. Configuration edition failed.")
+                sys.exit(0)
+            logger.info("Edit configuration file %s with editor %s" %
+                        (config_path, default_editor))
+            os.system("%s %s" % (default_editor, config_path))
 
 
 
