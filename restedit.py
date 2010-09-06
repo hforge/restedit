@@ -23,6 +23,7 @@ if win32:
     # import pywin32 stuff first so it never looks into system32
     import pythoncom, pywintypes
     from win32process import CreateProcess, GetExitCodeProcess, STARTUPINFO
+    from _winreg import HKEY_LOCAL_MACHINE, OpenKey, EnumKey, QueryValueEx
 
     # prevent warnings from being turned into errors by py2exe
     import warnings
@@ -1080,44 +1081,59 @@ editor=gimp -n
 
 [content-type:application/vnd.oasis.opendocument.text]
 extension=.odt
-editor=soffice
+editor={openOffice}
 
 [content-type:application/vnd.sun.xml.writer]
 extension=.sxw
-editor=soffice
+editor={openOffice}
 
 [content-type:application/vnd.sun.xml.calc]
 extension=.sxc
-editor=soffice
+editor={openOffice}
 
 [content-type:application/vnd.oasis.opendocument.spreadsheet]
 extension=.ods
-editor=soffice
+editor={openOffice}
 
 [content-type:application/vnd.oasis.opendocument.presentation]
 extension=.odp
-editor=soffice
+editor={openOffice}
 
 [content-type:application/msword]
 extension=.doc
-editor=soffice
+editor={openOffice}
 
 [content-type:application/vnd.ms-excel]
 extension=.xls
-editor=soffice
+editor={openOffice}
 
 [content-type:application/vnd.ms-powerpoint]
 extension=.ppt
-editor=soffice
+editor={openOffice}
 """
 def get_default_configuration():
     if win32:
         default_editor = 'notepad'
+
+	# Try to find automatically OpenOffice
+	try:
+	    key = OpenKey(HKEY_LOCAL_MACHINE,
+	                  'SOFTWARE\\OpenOffice.org\\OpenOffice.org')
+	    version = EnumKey(key, 0)
+	    key = OpenKey(HKEY_LOCAL_MACHINE,
+	                  'SOFTWARE\\OpenOffice.org\\OpenOffice.org\\' +
+			  version)
+	    openOffice = QueryValueEx(key, 'Path')[0]
+	except WindowsError:
+	    openOffice = 'soffice'
+
     else:
         default_editor = 'gvim -f'
+        openOffice = 'soffice'
 
     return default_configuration.format(version=__version__,
-		                        default_editor=default_editor)
+		                        default_editor=default_editor,
+					openOffice=openOffice)
 
 
 
