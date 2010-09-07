@@ -20,10 +20,14 @@ import sys
 win32 = sys.platform == 'win32'
 
 if win32:
+    from os import startfile
     # import pywin32 stuff first so it never looks into system32
     import pythoncom, pywintypes
     from win32process import CreateProcess, GetExitCodeProcess, STARTUPINFO
-    from _winreg import HKEY_LOCAL_MACHINE, OpenKey, EnumKey, QueryValueEx
+    from win32api import FindExecutable, ExpandEnvironmentStrings
+    from _winreg import OpenKey, OpenKeyEx, EnumKey, QueryValueEx
+    from _winreg import HKEY_LOCAL_MACHINE, HKEY_CLASSES_ROOT
+
 
     # prevent warnings from being turned into errors by py2exe
     import warnings
@@ -38,7 +42,7 @@ from glob import glob
 from time import sleep, mktime, asctime, localtime, ctime
 from ConfigParser import ConfigParser
 from optparse import OptionParser
-from os import tempnam, remove, chmod, system, startfile, spawnvp, P_NOWAIT
+from os import tempnam, remove, chmod, system, spawnvp, P_NOWAIT
 from os import WNOHANG, waitpid
 from os.path import exists, expanduser, getmtime
 # XXX Suppress me, deprecated
@@ -313,9 +317,6 @@ class ExternalEditor:
         editor = self.options.get('editor')
 
         if win32 and editor is None:
-            from _winreg import HKEY_CLASSES_ROOT, OpenKeyEx, \
-                                QueryValueEx, EnumKey
-            from win32api import FindExecutable, ExpandEnvironmentStrings
 
             # Find editor application based on mime type and extension
             content_type = self.metadata.get('content_type')
