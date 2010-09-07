@@ -836,15 +836,15 @@ class EditorProcess:
 
         original_filepath = self.contentfile.split(file_separator)
         logger.debug("log file schemes : %s" % self.lock_file_schemes)
-        for i in self.lock_file_schemes:
+        for scheme in self.lock_file_schemes:
             filepath = original_filepath[:]
-            if i == '':
+            if scheme == '':
                 continue
-            filepath[-1] = i % filepath[-1]
+            filepath[-1] = scheme % filepath[-1]
             filename = file_separator.join(filepath)
             logger.debug("Test: lock file : %s" % filename)
             if glob.glob(filename):
-                self.lock_file_schemes = [i]
+                self.lock_file_schemes = [scheme]
                 return True
 
         return False
@@ -1034,9 +1034,9 @@ version = {version}
 
 # Lock File Scheme
 # These are schemes that are used in order to detect "lock" files
-# %%s is the edited file's name (add a ';' between each scheme):
-# lock_file_schemes=.~lock.%%s#;~%%s.lock
-lock_file_schemes=.~lock.%%s#;.%%s.swp
+# %s is the edited file's name (add a ';' between each scheme):
+# lock_file_schemes=.~lock.%s#;~%s.lock
+lock_file_schemes=.~lock.%s#;.%s.swp
 
 # Uncomment and specify an editor value to override the editor
 # specified in the environment
