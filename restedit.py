@@ -32,6 +32,10 @@ if win32:
     # prevent warnings from being turned into errors by py2exe
     import warnings
     warnings.filterwarnings('ignore')
+else:
+    from os import spawnvp, WNOHANG
+    # XXX Suppress me, deprecated
+    from popen2 import Popen4
 
 import re
 import logging
@@ -42,11 +46,9 @@ from glob import glob
 from time import sleep, mktime, asctime, localtime, ctime
 from ConfigParser import ConfigParser
 from optparse import OptionParser
-from os import tempnam, remove, chmod, system, spawnvp, P_NOWAIT
-from os import WNOHANG, waitpid
+from os import tempnam, remove, chmod, system, P_NOWAIT
+from os import waitpid
 from os.path import exists, expanduser, getmtime
-# XXX Suppress me, deprecated
-from popen2 import Popen4
 from shutil import copyfileobj
 from tempfile import mktemp
 from traceback import print_exc
