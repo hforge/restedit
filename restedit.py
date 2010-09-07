@@ -100,16 +100,12 @@ class Configuration:
         logger.info("save at: %s" % asctime(localtime()) )
 
 
-    def set(self, section, option, value):
-        self.config.set(section, option, value)
-
-
     def __getattr__(self, name):
         # Delegate to the ConfigParser instance
         return getattr(self.config, name)
 
 
-    def getAllOptions(self, content_type, title, host_domain):
+    def getAllOptions(self, content_type, title, extension, host_domain):
         """Return a dict of all applicable options for the
            given content_type and host_domain
         """
@@ -136,6 +132,11 @@ class Configuration:
                 for option in self.config.options(section):
                     opt[option] = self.config.get(section, option)
                     logger.debug("option %s: %s" %( option, opt[option]))
+
+        # No extension and there is an extension in the metadata
+        if opt.get('extension') is None and extension is not None:
+            opt['extension'] = extension
+
         return opt
 
 
@@ -191,6 +192,7 @@ class ExternalEditor:
             self.options = self.config.getAllOptions(
                                             metadata.get('content_type',''),
                                             metadata.get('title',''),
+                                            metadata.get('extension'),
                                             self.host)
             # Log level
             logger.setLevel(LOG_LEVELS[self.options.get('log_level','info')])
