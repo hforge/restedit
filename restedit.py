@@ -29,22 +29,24 @@ if win32:
     import warnings
     warnings.filterwarnings('ignore')
 
-import os, re, popen2
-import time
-import traceback
+import re
 import logging
-import urllib
-import shutil
-import glob
 
 from base64 import decodestring as decode_base64
 from datetime import datetime
-from time import sleep, mktime
+from glob import glob
+from time import sleep, mktime, asctime, localtime, ctime
 from ConfigParser import ConfigParser
 from optparse import OptionParser
-from os import tempnam, remove, chmod, system, startfile
+from os import tempnam, remove, chmod, system, startfile, spawnvp, P_NOWAIT
+from os import WNOHANG, waitpid
 from os.path import exists, expanduser, getmtime
+# XXX Suppress me, deprecated
+from popen2 import Popen4
+from shutil import copyfileobj
 from tempfile import mktemp
+from traceback import print_exc
+from urllib import unquote
 from urllib2 import parse_http_list, parse_keqv_list, Request, build_opener
 from urllib2 import HTTPBasicAuthHandler, HTTPDigestAuthHandler
 from urllib2 import HTTPPasswordMgrWithDefaultRealm, HTTPError
@@ -85,13 +87,13 @@ class Configuration:
         self.config = ConfigParser()
         self.config.readfp(open(path))
 
-        logger.info("init at: %s" % time.asctime(time.localtime()) )
+        logger.info("init at: %s" % asctime(localtime()) )
 
 
     def save(self):
         """Save config options to disk"""
         self.config.write(open(self.path, 'w'))
-        logger.info("save at: %s" % time.asctime(time.localtime()) )
+        logger.info("save at: %s" % asctime(localtime()) )
 
 
     def set(self, section, option, value):
@@ -219,12 +221,12 @@ class ExternalEditor:
             # Write the body of the input file to a separate file
             if int(self.options.get('long_file_name', 0)):
                 sep = self.options.get('file_name_separator', ',')
-                content_file = urllib.unquote('-%s%s' % (self.host, self.path))
+                content_file = unquote('-%s%s' % (self.host, self.path))
                 content_file = content_file.replace(
                     '/', sep).replace(':',sep).replace(' ','_')
             else:
                 content_file = ('-' +
-                   urllib.unquote(self.path.split('/')[-1]).replace(' ','_'))
+                   unquote(self.path.split('/')[-1]).replace(' ','_'))
 
             extension = self.options.get('extension')
             if extension and not content_file.endswith(extension):
@@ -242,7 +244,7 @@ class ExternalEditor:
             logger.debug('Destination filename will be: %r.', content_file)
 
             body_f = open(content_file, 'wb')
-            shutil.copyfileobj(input_file, body_f)
+            copyfileobj(input_file, body_f)
             self.content_file = content_file
             self.saved = False
             body_f.close()
@@ -273,7 +275,7 @@ class ExternalEditor:
 
 
     def __del__(self):
-        logger.info("Restedit ends at: %s" % time.asctime(time.localtime()) )
+        logger.info("Restedit ends at: %s" % asctime(localtime()) )
 
 
     def cleanContentFile(self):
@@ -283,23 +285,23 @@ class ExternalEditor:
                 remove(self.content_file)
                 logger.info("Content File cleaned up %r at %s" %
                             (self.content_file,
-                             time.asctime(time.localtime())))
+                             asctime(localtime())))
                 return True
             except OSError:
                 if self.tried_cleanup:
                     logger.exception("Failed to clean up %r at %s" %
                                      (self.content_file,
-                                      time.asctime(time.localtime())))
+                                      asctime(localtime())))
                     # Issue logged, but it's already the second try.
                     # So continue.
                     return False
                 else:
                     logger.debug(("Failed to clean up %r at %s ; retry in 10 "
                                   "sec") % (self.content_file,
-                                            time.asctime(time.localtime())))
+                                            asctime(localtime())))
                     # Some editors close first and save the file ; this may
                     # last few seconds
-                    time.sleep(10)
+                    sleep(10)
                     self.tried_cleanup = True
                     # This is the first try. It may be an editor issue. Let's
                     # retry later.
@@ -494,7 +496,7 @@ class ExternalEditor:
             msg += "Some modifications are NOT SAVED to the server.\n "
             if self.last_saved_mtime != self.initial_mtime:
                 msg += ("\n This file has been saved at : %s \n" %
-                        time.ctime(self.last_saved_mtime))
+                        ctime(self.last_saved_mtime))
             else:
                 msg += "\n This file has never been saved\n\n "
             msg += "You may have network issues\n\n "
@@ -641,7 +643,7 @@ class ExternalEditor:
 
     def put_changes(self):
         """Save changes to the file back to the CMS"""
-        logger.info("put_changes at: %s" % time.asctime(time.localtime()))
+        logger.info("put_changes at: %s" % asctime(localtime()))
 
         # Read the new body
         body = open(self.content_file, 'rb')
@@ -710,7 +712,7 @@ class ExternalEditor:
                 sys.exit(0)
             logger.info("Edit configuration file %s with editor %s" %
                         (config_path, default_editor))
-            os.system("%s %s" % (default_editor, config_path))
+            system("%s %s" % (default_editor, config_path))
 
 
 
@@ -776,7 +778,7 @@ class EditorProcess:
         arg_re = r"""\s*([^'"]\S+)\s+|\s*"([^"]+)"\s*|\s*'([^']+)'\s*"""
         args = re.split(arg_re, self.command.strip())
         args = filter(None, args) # Remove empty elements
-        self.pid = os.spawnvp(os.P_NOWAIT, args[0], args)
+        self.pid = spawnvp(P_NOWAIT, args[0], args)
 
 
     def wait(self, timeout):
@@ -812,15 +814,15 @@ class EditorProcess:
     def test_file_open_unix(self):
         """Test if the file is locked on the FS"""
         logger.debug("test if the file edited is locked by filesystem")
-        isFileOpenNum = popen2.Popen4('/bin/fuser %s' %
-                                      self.command.split(' ')[-1]).wait()
+        isFileOpenNum = Popen4('/bin/fuser %s' %
+                               self.command.split(' ')[-1]).wait()
         return isFileOpenNum == 0
 
 
     def test_PID_unix(self):
         """Test PID"""
         try:
-            exit_pid, exit_status = os.waitpid(self.pid, os.WNOHANG)
+            exit_pid, exit_status = waitpid(self.pid, WNOHANG)
         except OSError:
             return False
         return exit_pid != self.pid
@@ -843,7 +845,7 @@ class EditorProcess:
             filepath[-1] = scheme % filepath[-1]
             filename = file_separator.join(filepath)
             logger.debug("Test: lock file : %s" % filename)
-            if glob.glob(filename):
+            if glob(filename):
                 self.lock_file_schemes = [scheme]
                 return True
 
@@ -1002,7 +1004,7 @@ def fatalError(message, exit=True):
         #    log_file.seek(0)
         #    shutil.copyfileobj(log_file, debug_f)
         #    print >> debug_f, '-' * 80
-        traceback.print_exc(file=debug_f)
+        print_exc(file=debug_f)
 
     finally:
         debug_f.close()
