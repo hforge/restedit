@@ -13,6 +13,7 @@ AppPublisher=Itaapy
 AppPublisherURL=http://www.itaapy.com
 AppSupportURL=http://www.itaapy.com
 AppUpdatesURL=http://www.itaapy.com
+ChangesAssociations=yes
 DefaultDirName={pf}\RestEdit
 DefaultGroupName=RestEdit
 DisableProgramGroupPage=yes
@@ -42,3 +43,8 @@ Name: "{commondesktop}\RestEdit"; Filename: "{app}\restedit.exe"; Tasks: desktop
 Filename: "{app}\vcredist_x86.exe"; StatusMsg: "Installing dependancy, ...";
 Filename: "{app}\restedit.exe"; Description: "{cm:LaunchProgram,RestEdit}"; Flags: nowait postinstall skipifsilent
 
+[Registry]
+Root: HKCR; Subkey: ".restedit"; ValueType: string; ValueName: ""; ValueData: "Restedit"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Restedit"; ValueType: string; ValueName: ""; ValueData: "Restedit"; Flags: uninsdeletekey
+;Root: HKCR; Subkey: "Restedit\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\restedit.exe,0"
+Root: HKCR; Subkey: "Restedit\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\restedit"" ""%1"""
