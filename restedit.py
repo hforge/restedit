@@ -16,9 +16,17 @@
 """Restedit, an External Editor Helper Application based on zopeedit.py:
 http://plone.org/products/zope-externaleditor-client"""
 
-import sys
-win32 = sys.platform == 'win32'
+# Where am i ?
+# The windows version is used with py2exe and a python 2.x (actually 2.6)
+# So the possibilities are:
+#   - under windows with a python 2.x
+#   - under Linux/unix with python 2.x (>= 2.6 is assumed) or python 3.x
+from sys import platform, version_info
+win32 = platform == 'win32'
+py3 = version_info.major == 3
 
+
+# Windows / Unix
 if win32:
     from os import startfile
     # import pywin32 stuff first so it never looks into system32
@@ -35,28 +43,46 @@ if win32:
 else:
     from os import spawnvp, WNOHANG
     # XXX Suppress me, deprecated
+    # XXX pb with py3
     from popen2 import Popen4
 
+
+# Python 3.x / Python 2.x
+if py3:
+    from configParser import ConfigParser
+    from urllib.parse import unquote
+    from urllib.request import Request, build_opener
+    from urllib.request import HTTPBasicAuthHandler, HTTPDigestAuthHandler
+    from urllib.request import HTTPPasswordMgrWithDefaultRealm
+    from urllib.error import HTTPError
+    from urllib.parse import urlparse
+else:
+    from ConfigParser import ConfigParser
+    from urllib import unquote
+    from urllib2 import Request, build_opener
+    from urllib2 import HTTPBasicAuthHandler, HTTPDigestAuthHandler
+    from urllib2 import HTTPPasswordMgrWithDefaultRealm, HTTPError
+    from urlparse import urlparse
+
+
+# Common
 import re
 import logging
-
+import sys
 from base64 import decodestring as decode_base64
 from datetime import datetime
 from glob import glob
 from time import sleep, mktime, asctime, localtime, ctime
-from ConfigParser import ConfigParser
 from optparse import OptionParser
 from os import tempnam, remove, chmod, system, P_NOWAIT
 from os import waitpid
 from os.path import exists, expanduser, getmtime
 from shutil import copyfileobj
+from sys import exc_info
 from tempfile import mktemp
 from traceback import print_exc
-from urllib import unquote
-from urllib2 import parse_http_list, parse_keqv_list, Request, build_opener
-from urllib2 import HTTPBasicAuthHandler, HTTPDigestAuthHandler
-from urllib2 import HTTPPasswordMgrWithDefaultRealm, HTTPError
-from urlparse import urlparse
+# XXX pb with py3
+from urllib2 import parse_http_list, parse_keqv_list
 from email.utils import parsedate_tz, mktime_tz, formatdate
 
 
@@ -77,14 +103,14 @@ log_file = None
 class Configuration:
 
     def __init__(self):
-    	if win32:
+        if win32:
             path = expanduser('~\\Restedit.ini')
         else:
             path = expanduser('~/.resteditrc')
         self.path = path
 
-	# No file, we create a new one
-	if not exists(path):
+        # No file, we create a new one
+        if not exists(path):
             f = open(path, 'w')
             f.write(get_default_configuration())
             f.close()
@@ -239,7 +265,7 @@ class ExternalEditor:
             extension = self.options.get('extension')
             if extension and not content_file.endswith(extension):
                 content_file = content_file + extension
-            if self.options.has_key('temp_dir'):
+            if 'temp_dir' in self.options:
                 while 1:
                     temp = expanduser(self.options['temp_dir'])
                     temp = tempnam(temp)
@@ -261,7 +287,7 @@ class ExternalEditor:
             if self.clean_up:
                 try:
                     logger.debug('Cleaning up %r.', input_filename)
-                    chmod(input_filename, 0777)
+                    chmod(input_filename, 0o777)
                     remove(input_filename)
                 except OSError:
                     logger.exception('Failed to clean up %r.', input_filename)
@@ -273,12 +299,12 @@ class ExternalEditor:
             # in the config file
             if getattr(self, 'clean_up', True):
                 try:
-                    exc, exc_data = sys.exc_info()[:2]
+                    exc, exc_data = exc_info()[:2]
                     if input_filename is not None:
                         remove(input_filename)
                 except OSError:
                     # Sometimes we aren't allowed to delete it
-                    raise exc, exc_data
+                    raise exc(exc_data)
             raise
 
 
@@ -636,7 +662,7 @@ class ExternalEditor:
         request.get_method = lambda : 'PUT'
 
         # Add the additional headers
-        for key, value in headers.iteritems():
+        for key, value in headers.items():
             request.add_header(key, value)
 
         # Try to connect
@@ -687,14 +713,14 @@ class ExternalEditor:
     def edit_config(self):
         logger.info('Edit local configuration')
 
-	# The good path, ...
+        # The good path, ...
         if win32:
             config_path = expanduser('~\\Restedit.ini')
         else:
             config_path = expanduser('~/.resteditrc')
 
-	# Yet a file ?
-	if exists(config_path):
+        # Yet a file ?
+        if exists(config_path):
             if askYesNo("Do you want to replace your configuration file "
                         "with the default one ?"):
                 logger.info("Replace the configuration file with the default "
@@ -703,10 +729,10 @@ class ExternalEditor:
                 config_file.write(get_default_configuration())
                 config_file.close()
 
-	# Launch an editor
-	if win32:
-	    startfile(config_path)
-	else:
+        # Launch an editor
+        if win32:
+            startfile(config_path)
+        else:
             # Launch default editor with the user configuration file
             default_editor = Configuration().config.get('general',
 			    				'config_editor',
@@ -772,7 +798,7 @@ class EditorProcess:
             self.handle, nil, nil, nil = CreateProcess(None, self.command,
                                                        None, None, 1, 0, None,
                                                        None, STARTUPINFO())
-        except pywintypes.error, e:
+        except pywintypes.error as e:
             fatalError('Error launching editor process\n'
                        '(%s):\n%s' % (self.command, e[2]))
 
@@ -781,8 +807,8 @@ class EditorProcess:
         # Prepare the command arguments, we use this regex to
         # split on whitespace and properly handle quoting
         arg_re = r"""\s*([^'"]\S+)\s+|\s*"([^"]+)"\s*|\s*'([^']+)'\s*"""
-        args = re.split(arg_re, self.command.strip())
-        args = filter(None, args) # Remove empty elements
+        args = [ arg for arg in re.split(arg_re, self.command.strip())
+                     if arg ] # Remove empty elements
         self.pid = spawnvp(P_NOWAIT, args[0], args)
 
 
@@ -795,7 +821,7 @@ class EditorProcess:
         """Test the file is locked on the FS"""
         try:
             fileOpen = file(self.contentfile, 'a')
-        except IOError, e:
+        except IOError as e:
             if e.args[0]==13:
                 logger.debug("Document is writeLocked by command")
                 self.cmdLocksWrite = True
@@ -924,10 +950,13 @@ def has_tk():
        already been setup. Returns true if tk is happy,
        false if tk throws an error (like its not available)"""
     # Create a hidden root window to make Tkinter happy
-    if not locals().has_key('tk_root'):
+    if 'tk_root' not in locals():
         try:
             global tk_root
-            from Tkinter import Tk
+            if py3:
+                from tkinter import Tk
+            else:
+                from Tkinter import Tk
             tk_root = Tk()
             tk_root.withdraw()
             return True
@@ -945,7 +974,10 @@ def tk_flush():
 def askPassword(realm, username):
     """Password dialog box"""
     if has_tk():
-        from tkSimpleDialog import askstring
+        if py3:
+            from tkinter.simpledialog import askstring
+        else:
+            from tkSimpleDialog import askstring
         pwd = askstring(TK_TITLE,
                         "Please enter the password for '%s' in '%s'" %
                         (username, realm), show='*')
@@ -957,28 +989,37 @@ def askPassword(realm, username):
 def errorDialog(message):
     """Error dialog box"""
     if has_tk():
-        from tkMessageBox import showerror
+        if py3:
+            from tkinter.messagebox import showerror
+        else:
+            from tkMessageBox import showerror
         showerror(TK_TITLE, message)
         tk_flush()
     else:
-        print message
+        print(message)
 
 
 
 def messageDialog(message):
     """Message dialog box"""
     if has_tk():
-        from tkMessageBox import showinfo
+        if py3:
+            from tkinter.messagebox import showinfo
+        else:
+            from tkMessageBox import showinfo
         showinfo(TK_TITLE, message)
         tk_flush()
     else:
-        print message
+        print(message)
 
 
 
 def askRetryCancel(message):
     if has_tk():
-        from tkMessageBox import askretrycancel
+        if py3:
+            from tkinter.messagebox import askretrycancel
+        else:
+            from tkMessageBox import askretrycancel
         response = askretrycancel(TK_TITLE, message)
         tk_flush()
         return response
@@ -987,7 +1028,10 @@ def askRetryCancel(message):
 
 def askYesNo(message):
     if has_tk():
-        from tkMessageBox import askyesno
+        if py3:
+            from tkinter.messagebox import askyesno
+        else:
+            from tkMessageBox import askyesno
         response = askyesno(TK_TITLE, message)
         tk_flush()
         return response
@@ -1122,25 +1166,25 @@ def get_default_configuration():
     if win32:
         default_editor = 'notepad'
 
-	# Try to find automatically OpenOffice
-	try:
-	    key = OpenKey(HKEY_LOCAL_MACHINE,
-	                  'SOFTWARE\\OpenOffice.org\\OpenOffice.org')
-	    version = EnumKey(key, 0)
-	    key = OpenKey(HKEY_LOCAL_MACHINE,
-	                  'SOFTWARE\\OpenOffice.org\\OpenOffice.org\\' +
-			  version)
-	    openOffice = QueryValueEx(key, 'Path')[0]
-	except WindowsError:
-	    openOffice = 'soffice'
+        # Try to find automatically OpenOffice
+        try:
+            key = OpenKey(HKEY_LOCAL_MACHINE,
+                          'SOFTWARE\\OpenOffice.org\\OpenOffice.org')
+            version = EnumKey(key, 0)
+            key = OpenKey(HKEY_LOCAL_MACHINE,
+                          'SOFTWARE\\OpenOffice.org\\OpenOffice.org\\' +
+                          version)
+            openOffice = QueryValueEx(key, 'Path')[0]
+        except WindowsError:
+            openOffice = 'soffice'
 
     else:
         default_editor = 'gvim -f'
         openOffice = 'soffice'
 
     return default_configuration.format(version=__version__,
-		                        default_editor=default_editor,
-					openOffice=openOffice)
+                                        default_editor=default_editor,
+                                        openOffice=openOffice)
 
 
 
@@ -1169,4 +1213,4 @@ if __name__ == '__main__':
     except (KeyboardInterrupt, SystemExit):
         pass
     except:
-        fatalError(sys.exc_info()[1])
+        fatalError(exc_info()[1])
