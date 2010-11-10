@@ -44,16 +44,17 @@ else:
     from os import spawnvp, WNOHANG
     # XXX Suppress me, deprecated
     # XXX pb with py3
-    from popen2 import Popen4
+    from subprocess import Popen
 
 
 # Python 3.x / Python 2.x
 if py3:
-    from configParser import ConfigParser
+    from configparser import ConfigParser
     from urllib.parse import unquote
     from urllib.request import Request, build_opener
     from urllib.request import HTTPBasicAuthHandler, HTTPDigestAuthHandler
     from urllib.request import HTTPPasswordMgrWithDefaultRealm
+    from urllib.request import parse_http_list, parse_keqv_list
     from urllib.error import HTTPError
     from urllib.parse import urlparse
 else:
@@ -62,6 +63,7 @@ else:
     from urllib2 import Request, build_opener
     from urllib2 import HTTPBasicAuthHandler, HTTPDigestAuthHandler
     from urllib2 import HTTPPasswordMgrWithDefaultRealm, HTTPError
+    from urllib2 import parse_http_list, parse_keqv_list
     from urlparse import urlparse
 
 
@@ -74,15 +76,13 @@ from datetime import datetime
 from glob import glob
 from time import sleep, mktime, asctime, localtime, ctime
 from optparse import OptionParser
-from os import tempnam, remove, chmod, system, P_NOWAIT
+from os import remove, chmod, system, P_NOWAIT
 from os import waitpid
 from os.path import exists, expanduser, getmtime
 from shutil import copyfileobj
 from sys import exc_info
-from tempfile import mktemp
+from tempfile import mktemp, NamedTemporaryFile
 from traceback import print_exc
-# XXX pb with py3
-from urllib2 import parse_http_list, parse_keqv_list
 from email.utils import parsedate_tz, mktime_tz, formatdate
 
 
@@ -262,27 +262,24 @@ class ExternalEditor:
                 content_file = ('-' +
                    unquote(self.path.split('/')[-1]).replace(' ','_'))
 
+            # Create a temporally name / file
             extension = self.options.get('extension')
             if extension and not content_file.endswith(extension):
-                content_file = content_file + extension
+                content_file += extension
             if 'temp_dir' in self.options:
-                while 1:
-                    temp = expanduser(self.options['temp_dir'])
-                    temp = tempnam(temp)
-                    content_file = '%s%s' % (temp, content_file)
-                    if not exists(content_file):
-                        break
+                temp_dir =  expanduser(self.options['temp_dir'])
             else:
-                content_file = mktemp(content_file,'rw')
+                temp_dir = None
+            body_f = NamedTemporaryFile(suffix=content_file, dir=temp_dir,
+                                        delete=False)
+            self.content_file = body_f.name
+            logger.debug('Destination filename will be: %r.',
+                         self.content_file)
 
-            logger.debug('Destination filename will be: %r.', content_file)
-
-            body_f = open(content_file, 'wb')
             copyfileobj(input_file, body_f)
-            self.content_file = content_file
-            self.saved = False
             body_f.close()
             input_file.close()
+            self.saved = False
 
             if self.clean_up:
                 try:
@@ -845,8 +842,8 @@ class EditorProcess:
     def test_file_open_unix(self):
         """Test if the file is locked on the FS"""
         logger.debug("test if the file edited is locked by filesystem")
-        isFileOpenNum = Popen4('/bin/fuser %s' %
-                               self.command.split(' ')[-1]).wait()
+        isFileOpenNum = Popen([ '/bin/fuser',
+                                self.command.split(' ')[-1] ]).wait()
         return isFileOpenNum == 0
 
 
