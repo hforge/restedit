@@ -23,7 +23,7 @@ http://plone.org/products/zope-externaleditor-client"""
 #   - under Linux/unix with python 2.x (>= 2.6 is assumed) or python 3.x
 from sys import platform, version_info
 win32 = platform == 'win32'
-py3 = version_info.major == 3
+py3 = version_info[0] == 3
 
 
 # Windows / Unix
