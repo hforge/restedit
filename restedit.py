@@ -685,9 +685,9 @@ class ExternalEditor:
         del body
 
         # An error ?
-        if response is not None and response.code / 100 != 2:
-            if askRetryAfterError(response, 'Could not transfer the changes\n'
-                                            'Error occurred during HTTP put'):
+        if response is not None and response.code // 100 != 2:
+            if askRetryCancel('Error occured during the changes transfer to '
+                              'the server'):
                 return self.put_changes()
             else:
                 logger.error('Could not transfer the changes\n'
@@ -737,18 +737,6 @@ class ExternalEditor:
             logger.info("Edit configuration file %s with editor %s" %
                         (config_path, default_editor))
             system("%s %s" % (default_editor, config_path))
-
-
-
-def askRetryAfterError(response, operation, message=''):
-    """Dumps response data"""
-    # XXX Verify these lines
-    if not message \
-       and response.getheader('Bobo-Exception-Type') is not None:
-        message = '%s: %s' % (response.getheader('Bobo-Exception-Type'),
-                              response.getheader('Bobo-Exception-Value'))
-    return askRetryCancel('%s:\n%d %s\n%s' % (operation, response.status,
-                                           response.reason, message))
 
 
 
