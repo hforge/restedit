@@ -241,16 +241,12 @@ class ExternalEditor:
             self.max_is_alive_counter = int(
                                     self.options.get('max_isalive_counter', 5))
 
-            # Server charset
-            self.server_charset = self.options.get('server_charset', 'utf-8')
-
             # Client charset
             self.client_charset = self.options.get('client_charset',
                                                    'iso-8859-1')
 
             # Retrieve original title
-            self.title = (metadata["title"].decode(self.server_charset)
-                          .encode(self.client_charset,'ignore'))
+            self.title = metadata["title"].encode(self.client_charset,'ignore')
 
             # Write the body of the input file to a separate file
             if int(self.options.get('long_file_name', 0)):
@@ -746,6 +742,7 @@ class ExternalEditor:
 
 def askRetryAfterError(response, operation, message=''):
     """Dumps response data"""
+    # XXX Verify these lines
     if not message \
        and response.getheader('Bobo-Exception-Type') is not None:
         message = '%s: %s' % (response.getheader('Bobo-Exception-Type'),
@@ -910,11 +907,12 @@ class EditorProcess:
 
 
 def read_metadata(input_file):
-    """Read the metadata from the input_file
+    """Read the metadata from the input_file. The metadata are in UTF-8
+       encoded.
     """
     metadata = {}
     while True:
-        line = input_file.readline()
+        line = input_file.readline().decode('utf-8')
 
         # The end ?
         if line == '\n':
@@ -1045,13 +1043,10 @@ def fatalError(message, exit=True):
         log_file = mktemp(suffix='-restedit-traceback.txt')
     debug_f = open(log_file, 'a+b')
     try:
-        # Copy the log_file before it goes away on a fatalError.
-        #if log_file is not None:
-        #    log_file.seek(0)
-        #    shutil.copyfileobj(log_file, debug_f)
-        #    print >> debug_f, '-' * 80
+        # Uncomment these lines to have the TB on the screen
+        #from traceback import format_exc
+        #messageDialog(format_exc())
         print_exc(file=debug_f)
-
     finally:
         debug_f.close()
     if exit:
@@ -1096,9 +1091,6 @@ editor = {default_editor}
 # log level : default is 'info'.
 # It can be set to debug, info, warning, error or critical.
 # log_level = debug
-
-# If your server is not using utf-8
-# server_charset = utf-8
 
 # If your client charset is not iso-8859-1
 # client_charset = iso-8859-1
