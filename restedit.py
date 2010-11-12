@@ -839,7 +839,7 @@ class EditorProcess:
     def test_file_open_unix(self):
         """Test if the file is locked on the FS"""
         logger.debug("test if the file edited is locked by filesystem")
-        isFileOpenNum = Popen([ '/bin/fuser',
+        isFileOpenNum = Popen([ 'fuser',
                                 self.command.split(' ')[-1] ]).wait()
         return isFileOpenNum == 0
 
