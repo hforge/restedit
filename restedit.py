@@ -2,6 +2,7 @@
 ##############################################################################
 #
 # Copyright (c) 2001, 2002 Zope Corporation and Contributors.
+# Copyright (c) 2005-2010 Thierry Benita - atReal <contact@atreal.net>
 # Copyright (c) 2010 David Versmisse <david.versmisse@itaapy.com>
 # All Rights Reserved.
 #
