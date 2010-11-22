@@ -662,7 +662,7 @@ class ExternalEditor:
         # Try to connect
         try:
             return opener.open(request)
-        except HTTPError:
+        except:
             return None
 
 
@@ -686,7 +686,8 @@ class ExternalEditor:
         del body
 
         # An error ?
-        if response is not None and response.code // 100 != 2:
+        if (response is None or
+            (response is not None and response.code // 100 != 2) ):
             if askRetryCancel('Error occured during the changes transfer to '
                               'the server'):
                 return self.put_changes()
