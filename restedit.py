@@ -217,6 +217,10 @@ class ExternalEditor:
             self.last_modified = http_date_to_datetime(last_modified)
             logger.debug('last_modified: %s' % str(self.last_modified))
 
+            # To mimic the used user-agent (useful for the authentication)
+            self.user_agent = metadata.get('user-agent',
+                                           'restedit/%s' % __version__)
+
             # Get all configuration options
             self.options = self.config.getAllOptions(
                                             metadata.get('content_type',''),
@@ -605,7 +609,7 @@ class ExternalEditor:
 
         # Build a new opener
         opener = build_opener()
-        headers = [ ('User-agent', 'restedit/%s' % __version__) ]
+        headers = [ ('User-agent', self.user_agent) ]
 
         # An authentication ?
         auth_header = self.metadata.get('auth')
