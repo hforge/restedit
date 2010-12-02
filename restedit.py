@@ -217,9 +217,8 @@ class ExternalEditor:
             self.last_modified = http_date_to_datetime(last_modified)
             logger.debug('last_modified: %s' % str(self.last_modified))
 
-            # To mimic the used user-agent (useful for the authentication)
-            self.user_agent = metadata.get('user-agent',
-                                           'restedit/%s' % __version__)
+            # The "includes" are added to the header (when PUT)
+            self.includes = metadata.get('includes')
 
             # Get all configuration options
             self.options = self.config.getAllOptions(
@@ -609,7 +608,11 @@ class ExternalEditor:
 
         # Build a new opener
         opener = build_opener()
-        headers = [ ('User-agent', self.user_agent) ]
+        headers = [ ('User-agent', 'restedit/%s' % __version__) ]
+
+        # Add the "includes"
+        for include in self.includes:
+            headers.append(include)
 
         # An authentication ?
         auth_header = self.metadata.get('auth')
@@ -904,7 +907,7 @@ def read_metadata(input_file):
     """Read the metadata from the input_file. The metadata are in UTF-8
        encoded.
     """
-    metadata = {}
+    metadata = {'includes': []}
     while True:
         line = input_file.readline().decode('utf-8')
 
@@ -913,7 +916,13 @@ def read_metadata(input_file):
             return metadata
 
         header_name, header_body = line.split(':', 1)
-        metadata[header_name.strip()] = header_body.strip()
+        header_name = header_name.strip()
+        header_body = header_body.strip()
+
+        if header_name.startswith('include-'):
+            metadata['includes'].append( (header_name[8:], header_body) )
+        else:
+            metadata[header_name] = header_body
 
 
 
