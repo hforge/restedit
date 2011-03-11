@@ -78,7 +78,7 @@ from glob import glob
 from time import sleep, mktime, asctime, localtime, ctime
 from optparse import OptionParser
 from os import remove, chmod, system, P_NOWAIT
-from os import waitpid
+from os import waitpid, sep as file_separator
 from os.path import exists, expanduser, getmtime
 from shutil import copyfileobj
 from sys import exc_info
@@ -737,8 +737,7 @@ class ExternalEditor:
         else:
             # Launch default editor with the user configuration file
             default_editor = Configuration().config.get('general',
-			    				'config_editor',
-                                                        '')
+                                                        'config_editor')
             if not default_editor:
                 logger.critical(
 			"No default editor. Configuration edition failed.")
@@ -853,18 +852,13 @@ class EditorProcess:
     def test_lock_file(self):
         """Test Lock File"""
 
-        if win32:
-            file_separator="\\"
-        else:
-            file_separator="/"
-
         original_filepath = self.contentfile.split(file_separator)
         logger.debug("log file schemes : %s" % self.lock_file_schemes)
         for scheme in self.lock_file_schemes:
-            filepath = original_filepath[:]
             if scheme == '':
                 continue
-            filepath[-1] = scheme % filepath[-1]
+            filepath = original_filepath[:]
+            filepath[-1] = scheme.replace('#filename#', filepath[-1])
             filename = file_separator.join(filepath)
             logger.debug("Test: lock file : %s" % filename)
             if glob(filename):
@@ -1080,9 +1074,9 @@ version = {version}
 
 # Lock File Scheme
 # These are schemes that are used in order to detect "lock" files
-# %s is the edited file's name (add a ';' between each scheme):
-# lock_file_schemes=.~lock.%s#;~%s.lock
-lock_file_schemes=.~lock.%s#;.%s.swp
+# #filename# is the edited file's name (add a ';' between each scheme):
+# lock_file_schemes=.~lock.#filename##;~#filename#.lock
+lock_file_schemes=.~lock.#filename##;.#filename#.swp
 
 # Uncomment and specify an editor value to override the editor
 # specified in the environment
