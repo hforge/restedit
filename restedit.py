@@ -24,6 +24,7 @@ http://plone.org/products/zope-externaleditor-client"""
 #   - under Linux/unix with python 2.x (>= 2.6 is assumed) or python 3.x
 from sys import platform, version_info
 win32 = platform == 'win32'
+osx = platform == 'darwin'
 py3 = version_info[0] == 3
 
 
@@ -770,6 +771,11 @@ class EditorProcess:
             self.methods = [ self.test_lock_file,
                              self.test_file_open_win32,
                              self.test_PID_win32 ]
+        elif osx:
+            # test_file_open_unix does not work with osx
+            # (fuser  does not behave as expected)
+            self.methods = [ self.test_lock_file,
+                             self.test_PID_unix ]
         else:
             self.methods = [ self.test_lock_file,
                              self.test_file_open_unix,
