@@ -19,6 +19,7 @@ DefaultGroupName=RestEdit
 DisableProgramGroupPage=yes
 LicenseFile=LICENSE.txt
 InfoAfterFile=README-WIN.txt
+OutputDir=.\bin
 OutputBaseFilename=RestEdit-x64-setup
 Compression=lzma
 SolidCompression=yes
