@@ -909,7 +909,10 @@ def read_metadata(input_file):
     """
     metadata = {'includes': []}
     while True:
-        line = input_file.readline().decode('utf-8')
+        if py3:
+            line = input_file.readline().decode('utf-8')
+        else:
+            line = input_file.readline()
 
         # The end ?
         if line == '\n':
