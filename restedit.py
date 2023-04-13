@@ -59,7 +59,9 @@ if py3:
     from urllib.request import parse_http_list, parse_keqv_list
     from urllib.error import HTTPError
     from urllib.parse import urlparse
+    from base64 import decodebytes as decode_base64
 else:
+    from base64 import decodestring as decode_base64
     from ConfigParser import ConfigParser
     from urllib import unquote
     from urllib2 import Request, build_opener
@@ -73,7 +75,6 @@ else:
 import re
 import logging
 import sys
-from base64 import decodestring as decode_base64
 from datetime import datetime
 from glob import glob
 from time import sleep, mktime, asctime, localtime, ctime
